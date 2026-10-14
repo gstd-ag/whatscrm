@@ -15,6 +15,12 @@ const isLogging = process.env.NODE_ENV === "logs";
 // ── TAREFA 5: tratamento global de erros nao capturados (ADITIVO) ───────────
 // Registrado no inicio da inicializacao: um erro async em qualquer rota/loop
 // nao derruba o processo (loga [CRITICAL] e mantem o servidor de pe).
+// Excecao: durante o BOOT (antes do app.listen), um uncaughtException e fatal
+// (ex.: modulo faltando no require) — ai saimos com exit(1) para o restart
+// policy do Docker/Dokploy reiniciar, em vez de ficar "running" sem escutar
+// a porta (Bad Gateway silencioso).
+let serverListening = false;
+
 process.on("unhandledRejection", (reason, promise) => {
   console.error("[CRITICAL] Unhandled Rejection at:", promise, "reason:", reason);
   // Nao derrubar o processo em producao a menos que seja fatal
@@ -22,7 +28,14 @@ process.on("unhandledRejection", (reason, promise) => {
 
 process.on("uncaughtException", (error) => {
   console.error("[CRITICAL] Uncaught Exception:", error);
-  // Nao derrubar o processo em producao a menos que seja fatal
+  if (!serverListening) {
+    // Boot quebrou antes de escutar a porta: sem recovery possivel.
+    console.error(
+      "[CRITICAL] Falha fatal durante o boot — encerrando para o container reiniciar."
+    );
+    process.exit(1);
+  }
+  // Runtime (servidor ja ativo): mantem o processo de pe
 });
 // ── Fim TAREFA 5 ─────────────────────────────────────────────────────────────
 
@@ -259,6 +272,7 @@ app.get("*", function (request, response) {
 
 // ─── Server ───────────────────────────────────────────────────────────────────
 const server = app.listen(process.env.PORT || 3010, () => {
+  serverListening = true;
   isLogging &&
     console.log(`WaCrm server is running on port ${process.env.PORT}`);
 
