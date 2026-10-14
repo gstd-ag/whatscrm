@@ -117,6 +117,12 @@ REDIS_PORT=6379
 # ==================== MULTI-TENANT ====================
 TENANT_RESOLUTION_MODE=subdomain      # subdomain | domain | header
 MAX_INSTANCES_PER_WORKER=50
+# Endurecer o isolamento (tenant_id = ? puro, sem OR tenant_id IS NULL):
+# ativar SOMENTE apos executar a migracao 03-backfill.sql com sucesso:
+# TENANT_STRICT=1
+# Reativar a sobrescrita fisica do index.html (NAO recomendado em multi-tenant;
+# o branding dinamico e feito via GET /api/web/branding):
+# ENABLE_INDEX_PATCH=1
 
 # ==================== STRIPE / PAGAMENTOS ====================
 STRIPE_LANG=pt
@@ -201,6 +207,10 @@ services:
     volumes:
       - db_data:/var/lib/mysql
       - ./database/import.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      # Multi-tenant: idempotente, seguro no primeiro boot do volume
+      - ./database/migrations/20261014_multi_tenant_core.sql:/docker-entrypoint-initdb.d/02-multitenant.sql:ro
+      # Backfill legado + coluna tenant_id em chats/agent_chats (apos o 02)
+      - ./database/migrations/20261014_backfill_legacy.sql:/docker-entrypoint-initdb.d/03-backfill.sql:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -465,7 +475,7 @@ docker exec whatscrm-mongo mongosh --eval "db.runCommand('ping')"
 ## 📦 Próximos Passos Pós-Deploy
 
 1. **Acessar https://app.gstd.com.br/admin/login** com `admin@admin.com` / `admin123`
-2. **Rodar migração multi-tenant** (ver item abaixo)
+2. **Rodar migração multi-tenant** (ver item abaixo — automática em volume novo; manual em banco existente)
 3. **Acessar painel super admin** em `/superadmin` (usuário criado no passo de migração)
 4. **Criar primeira clínica tenant** via `/superadmin/tenants`
 5. **Configurar domínio próprio** (feature futura: mapear `clinica.com.br → tenant`)
@@ -473,27 +483,32 @@ docker exec whatscrm-mongo mongosh --eval "db.runCommand('ping')"
 
 ## 🗄️ Migração Multi-Tenant no Deploy
 
-Após subir o Docker, executar dentro do container do app:
+**Volume de banco NOVO (primeiro deploy):** nada a fazer — o Docker executa
+`01-schema.sql` → `02-multitenant.sql` → `03-backfill.sql` automaticamente no
+primeiro boot (`initdb.d`), antes do app subir.
+
+**Banco EXISTENTE (volume já com dados):** o `initdb.d` **não** roda de novo.
+Execute as migrações manualmente a partir do host (na pasta do repositório):
 
 ```bash
-# Acessar container
-docker exec -it whatscrm-app bash
+# 1. Tabelas multi-tenant + seeds (idempotente — pode rodar quantas vezes)
+docker exec -i whatscrm-db mariadb -u root -p"${DB_ROOT_PASS}" whatscrm \
+  < database/migrations/20261014_multi_tenant_core.sql
 
-# Entrar no banco e aplicar migração
-mysql -u root -p${DB_ROOT_PASS} whatscrm < /opt/whatscrm/database/migrations/20261014_multi_tenant_core.sql
+# 2. Backfill: coluna tenant_id em chats/agent_chats + UPDATE NULL -> tenant padrao
+docker exec -i whatscrm-db mariadb -u root -p"${DB_ROOT_PASS}" whatscrm \
+  < database/migrations/20261014_backfill_legacy.sql
 
-# Verificar tabelas criadas
-mysql -u root -p${DB_ROOT_PASS} whatscrm -e "SHOW TABLES;"
-
-# Verificar super admin
-mysql -u root -p${DB_ROOT_PASS} whatscrm -e "SELECT * FROM super_admins;"
-
-# Verificar tenant padrão
-mysql -u root -p${DB_ROOT_PASS} whatscrm -e "SELECT * FROM tenants;"
-
-# Voltar ao container
-exit
+# Verificar: super admin, tenant padrao e nenhum tenant_id NULL restante
+docker exec -i whatscrm-db mariadb -u root -p"${DB_ROOT_PASS}" whatscrm -e "
+  SELECT * FROM super_admins;
+  SELECT id, slug, status FROM tenants;
+  SELECT COUNT(*) AS contacts_sem_tenant FROM contact WHERE tenant_id IS NULL;"
 ```
+
+Apos confirmar `contacts_sem_tenant = 0`, ative `TENANT_STRICT=1` no `.env`
+do app (isso troca o filtro de transição `(tenant_id = ? OR tenant_id IS NULL)`
+por `tenant_id = ?` puro) e reinicie o serviço.
 
 ## 🚨 Solução de Problemas Comuns
 
