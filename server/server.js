@@ -169,6 +169,10 @@ app.use(
 
 app.use(fileUpload());
 
+// ─── Multi-Tenant: resolve tenant por subdominio/header/query ────────────────
+// Tolerante: se a migracao ainda nao foi aplicada, degrada e segue normal.
+app.use("/api", require("./middlewares/tenant").resolveTenant);
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use("/api/user", require("./routes/user"));
 app.use("/api/web", require("./routes/web"));

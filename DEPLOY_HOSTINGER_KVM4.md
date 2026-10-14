@@ -1,0 +1,523 @@
+# 🖥️ DEPLOY EM VPS UBUNTU HOSTINGER (KVM 4) — GUIA COMPLETO
+# com Dokploy co-habitando outros aplicativos
+
+## 📋 Cenário
+- **VPS**: Hostinger KVM 4 — 4 vCPU, 16 GB RAM, 200 GB NVMe, 16 TB banda
+- **Dokploy**: Já instala outros aplicativos no mesmo servidor
+- **WhatsCRM**: Instalado como app separado no Dokploy ou via Docker Compose manual
+- **Domínio**: `app.gstd.com.br` (já configurado no Hostinger DNS)
+
+## ⚠️ Considerações Importantes para o Dokploy
+Quando o Dokploy já está no servidor com outros apps:
+
+### 1. Portas — Evitar conflitos
+| Serviço | Porta Padrão | Ação Recomendada |
+|---------|--------------|------------------|
+| WhatsCRM App | 3010 | Manter, mas usar NGINX reverse proxy na porta 80/443 |
+| MariaDB | 3306 | Usar socket interno ou porta diferente (3307) |
+| MongoDB | 27017 | Usar porta 27018 se houver conflito |
+| Redis | 6379 | Verificar se outro app não usa |
+| NGINX (SSL) | 80/443 | **Obrigatório** — frente a todos os apps |
+
+**Solução**: Usar `docker-compose.yml` com port mapping host→container e o NGINX como proxy inverso já configurado no Dokploy ou separado.
+
+### 2. Variáveis de Ambiente — Não conflitar
+No painel do Dokploy → **Environment** do serviço WhatsCRM, definir APENAS:
+
+```bash
+# OBRIGATÓRIAS (já vêm do compose padrão)
+DB_PASS=sua_senha_secreta
+DB_ROOT_PASS=senha_root_mariadb
+JWTKEY=openssl_rand -hex 48
+
+# SOBRESCREVER se necessário (checar primeiro no Dokploy):
+FRONTENDURI=https://app.gstd.com.br
+BACKURI=https://app.gstd.com.br
+DOMAIN=https://app.gstd.com.br
+NODE_ENV=production
+TZ=America/Sao_Paulo
+
+# NOVAS para multi-tenant (já incluidas no .env)
+REDIS_HOST=redis
+REDIS_PORT=6379
+TENANT_RESOLUTION_MODE=subdomain
+MAX_INSTANCES_PER_WORKER=50
+```
+
+### 3. Rede Docker — Isolar
+No `docker-compose.yml`, garantir que o WhatsCRM use rede própria ou que o NGINX do Dokploy consiga alcançar:
+
+```yaml
+networks:
+  - whatscrm-net
+  # Se o Dokploy usar rede "dokploy_default", adicionar bridge manual
+```
+
+### 4. SSL / Let's Encrypt com Dokploy
+- **Se Dokploy gerenciar SSL**: Marcar a opção "HTTPS" no serviço WhatsCRM
+- **Se SSL for do NGINX separado**: Desmarcar SSL no Dokpool e usar o guide abaixo
+
+## 🛠️ Guia de Deploy Manual (Caso precise sair do Dokploy ou configurar customizado)
+
+### Passo 1: Preparar o SO (Ubuntu 22.04+)
+```bash
+apt-get update && apt-get upgrade -y
+apt-get install -y docker.io docker-compose-plugin nginx certbot python3-certbot-nginx ufw fail2ban htop
+
+# Configurar firewall
+ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw --force enable
+
+# Criar usuário e adicionar ao grupo docker
+usermod -aG docker $USER
+newgrp docker
+```
+
+### Passo 2: Estrutura de Diretórios
+```bash
+mkdir -p /opt/whatscrm/{data,backups,logs,ssl}
+cd /opt/whatscrm
+
+# Clonar repositório limpo (sem secrets históricos)
+git clone https://github.com/seu-usuario/whatscrm.git app
+cd app
+git log --oneline -3
+```
+
+### Passo 3: Arquivo .env (Personalizar)
+```bash
+cat > /opt/whatscrm/app/.env <<'EOF'
+# ==================== DOMÍNIO & CORS ====================
+FRONTENDURI=https://app.gstd.com.br
+BACKURI=https://app.gstd.com.br
+DOMAIN=https://app.gstd.com.br
+NODE_ENV=production
+TZ=America/Sao_Paulo
+
+# ==================== BANCO DE DADOS ====================
+DB_HOST=mariadb
+DB_PORT=3306
+DB_NAME=whatscrm
+DB_USER=whatscrm
+DB_PASS=$(openssl rand -hex 24)        # gerado uma vez e FIXADO no .env
+DB_ROOT_PASS=$(openssl rand -hex 24)   # gerado uma vez e FIXADO no .env
+# ↑ Rode os comandos acima uma vez, cole os valores gerados no .env e
+#   NUNCA commite este arquivo (esta no .gitignore).
+
+# ==================== SEGURANÇA ====================
+JWTKEY=$(openssl rand -hex 48)        # Gerar novo a cada deploy
+MONGO_DB_NAME=wacrm_session
+
+# ==================== REDIS (Multi-tenant) ====================
+REDIS_HOST=redis
+REDIS_PORT=6379
+
+# ==================== MULTI-TENANT ====================
+TENANT_RESOLUTION_MODE=subdomain      # subdomain | domain | header
+MAX_INSTANCES_PER_WORKER=50
+
+# ==================== STRIPE / PAGAMENTOS ====================
+STRIPE_LANG=pt
+
+# ==================== LOG ====================
+LOG_LEVEL=info
+EOF
+chmod 600 /opt/whatscrm/app/.env
+```
+
+### Passo 4: docker-compose.yml (Otimizado para 4 vCPU / 16 GB)
+**Arquivo**: `/opt/whatscrm/app/docker-compose.yml`
+
+```yaml
+name: whatscrm-prod
+
+services:
+  # ── APP (API + Frontend + Socket.io) ──────────────────────
+  app:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: whatscrm-app
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '3.0'      # 3 vCPU para a API/Socket
+          memory: 10G
+    environment:
+      - PORT=3010
+      - NODE_ENV=production
+      - TZ=America/Sao_Paulo
+      - DBHOST=mariadb
+      - DBPORT=3306
+      - DBNAME=whatscrm
+      - DBUSER=whatscrm
+      - DBPASS=${DB_PASS}
+      - JWTKEY=${JWTKEY}
+      - FRONTENDURI=${FRONTENDURI}
+      - BACKURI=${BACKURI}
+      - DOMAIN=${DOMAIN}
+      - MONGO_DB_NAME=${MONGO_DB_NAME}
+      - STRIPE_LANG=${STRIPE_LANG}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TENANT_RESOLUTION_MODE=${TENANT_RESOLUTION_MODE}
+      - MAX_INSTANCES_PER_WORKER=${MAX_INSTANCES_PER_WORKER}
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+      redis:
+        condition: service_started
+    volumes:
+      - app_media:/app/client/public/media
+      - app_languages:/app/languages
+      - app_sessions:/app/sessions
+    networks:
+      - whatscrm-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ── MARIADB ─────────────────────────────────────────────────
+  mariadb:
+    image: mariadb:10.11
+    container_name: whatscrm-db
+    restart: unless-stopped
+    command:
+      --innodb-buffer-pool-size=4G
+      --max-connections=500
+      --innodb-log-file-size=512M
+    environment:
+      MARIADB_DATABASE: whatscrm
+      MARIADB_USER: whatscrm
+      MARIADB_PASSWORD: ${DB_PASS}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASS}
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./database/import.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 6G
+    networks:
+      - whatscrm-net
+
+  # ── MONGODB (Sessões Baileys) ───────────────────────────────
+  mongo:
+    image: mongo:7
+    container_name: whatscrm-mongo
+    restart: unless-stopped
+    command: --wiredTigerCacheSizeGB 2
+    volumes:
+      - mongo_data:/data/db
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 3G
+    networks:
+      - whatscrm-net
+
+  # ── REDIS (Socket.io adapter + Rate limit + BullMQ) ─────────
+  redis:
+    image: redis:7-alpine
+    container_name: whatscrm-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 2.5G
+    networks:
+      - whatscrm-net
+
+  # ── NGINX (Reverse Proxy + SSL + Rate Limit) ────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: whatscrm-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./ssl:/etc/ssl/certs:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - app_media:/var/www/media:ro
+    depends_on:
+      - app
+    networks:
+      - whatscrm-net
+
+volumes:
+  db_data:
+  mongo_data:
+  redis_data:
+  app_media:
+  app_languages:
+  app_sessions:
+
+networks:
+  whatscrm-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+```
+
+### Passo 5: Configuração NGINX (Compartilhado com outros apps no Dokploy)
+**Arquivo**: `/opt/whatscrm/app/nginx/conf.d/whatscrm.conf`
+
+```nginx
+server {
+    listen 80;
+    listen 443 ssl http2;
+    server_name app.gstd.com.br;
+
+    # SSL (se não for gerenciado pelo Dokploy)
+    ssl_certificate /etc/letsencrypt/live/app.gstd.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.gstd.com.br/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    # Segurança headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+
+    # === Media files (servidos diretamente pelo NGINX) ===
+    location /media/ {
+        alias /var/www/media/;
+        expires 30d;
+        add_header Cache-Control "public, must-revalidate";
+        add_header Access-Control-Allow-Origin "*";
+        try_files $uri =404;
+    }
+
+    location /meta-media/ {
+        alias /var/www/media/;
+        expires 30d;
+        try_files $uri =404;
+    }
+
+    # === Socket.IO / WebSocket (Essencial para WhatsApp) ===
+    location /socket.io/ {
+        proxy_pass http://app:3010;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+    }
+
+    # === API Routes com rate limiting ===
+    location /api/ {
+        # Rate limit por IP (10 req/s burst 50)
+        limit_req zone=api burst=50 nodelay;
+        
+        proxy_pass http://app:3010;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_buffering off;
+    }
+
+    # === Health check ===
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+
+    # === Frontend (React SPA) ===
+    location / {
+        proxy_pass http://app:3010;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+### Passo 6: Gerar Certificados SSL (Let's Encrypt)
+```bash
+# Parar nginx temporariamente se já rodar
+docker compose -f /opt/whatscrm/app/docker-compose.yml stop nginx
+
+# Obter certificado (modo standalone - usa porta 80 temporariamente)
+certbot certonly --standalone -d app.gstd.com.br \
+  --email seu@email.com --agree-tos --non-interactive
+
+# Ou via Dokploy (se tiver acesso): ativar HTTPS no serviço
+
+# Iniciar nginx novamente
+docker compose -f /opt/whatscrm/app/docker-compose.yml up -d nginx
+```
+
+### Passo 7: Subir a Stack
+```bash
+cd /opt/whatscrm/app
+
+# Build (primeira vez)
+docker compose build --no-cache app
+
+# Subir
+docker compose up -d
+
+# Aguiar inicial
+sleep 30
+
+# Verificar saúde
+docker compose ps
+
+# Testar
+curl -f https://app.gstd.com.br/api/web/get-default-language
+# Expected: {"success":true,"default":"Portuguese"}
+
+# Testar login admin
+curl -X POST https://app.gstd.com.br/api/admin/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@admin.com","password":"admin123"}'
+# Expected: {"success":true,"token":"eyJhbGci..."}
+```
+
+### Passo 8: Backup Automatizado
+```bash
+cat > /opt/whatscrm/backup.sh <<'BACKUP_EOF'
+#!/bin/bash
+DATE=$(date +%F_%H-%M)
+BACKUP_DIR="/opt/whatscrm/backups"
+RETENTION=30
+
+mkdir -p "$BACKUP_DIR"
+
+# Backup MariaDB
+docker exec whatscrm-db mariadb-dump -u root -p"${DB_ROOT_PASS}" --single-transaction whatscrm | gzip > "$BACKUP_DIR/mariadb_${DATE}.sql.gz"
+
+# Backup MongoDB
+docker exec whatscrm-mongo mongodump --db=wacrm_session --gzip > "$BACKUP_DIR/mongo_${DATE}.gzip"
+
+# Backup volumes (media, sessions, languages)
+tar -czf "$BACKUP_DIR/volumes_${DATE}.tar.gz" \
+  -C /opt/whatscrm/app server/client/public/media \
+  server/languages sessions 2>/dev/null || true
+
+# Limpar backups antigos
+find "$BACKUP_DIR" -type f -mtime +$RETENTION -delete
+
+echo "[$DATE] Backup concluído" >> /opt/whatscrm/logs/backup.log
+BACKUP_EOF
+
+chmod +x /opt/whatscrm/backup.sh
+
+# Cron (diário 03:00)
+echo "0 3 * * * root /opt/whatscrm/backup.sh" > /etc/cron.d/whatscrm-backup
+```
+
+### Passo 9: Monitoramento Básico
+```bash
+# Ver recursos em tempo real
+docker stats --no-stream --format "TABLE {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+
+# Logs do app
+docker compose logs -f app | tail -30
+
+# Testar conectividade Redis
+docker exec whatscrm-redis redis-cli ping
+
+# Testar conectividade Mongo
+docker exec whatscrm-mongo mongosh --eval "db.runCommand('ping')"
+```
+
+## 📦 Próximos Passos Pós-Deploy
+
+1. **Acessar https://app.gstd.com.br/admin/login** com `admin@admin.com` / `admin123`
+2. **Rodar migração multi-tenant** (ver item abaixo)
+3. **Acessar painel super admin** em `/superadmin` (usuário criado no passo de migração)
+4. **Criar primeira clínica tenant** via `/superadmin/tenants`
+5. **Configurar domínio próprio** (feature futura: mapear `clinica.com.br → tenant`)
+6. **Testar login por subdomínio**: `clinica1.app.gstd.com.br/login`
+
+## 🗄️ Migração Multi-Tenant no Deploy
+
+Após subir o Docker, executar dentro do container do app:
+
+```bash
+# Acessar container
+docker exec -it whatscrm-app bash
+
+# Entrar no banco e aplicar migração
+mysql -u root -p${DB_ROOT_PASS} whatscrm < /opt/whatscrm/database/migrations/20261014_multi_tenant_core.sql
+
+# Verificar tabelas criadas
+mysql -u root -p${DB_ROOT_PASS} whatscrm -e "SHOW TABLES;"
+
+# Verificar super admin
+mysql -u root -p${DB_ROOT_PASS} whatscrm -e "SELECT * FROM super_admins;"
+
+# Verificar tenant padrão
+mysql -u root -p${DB_ROOT_PASS} whatscrm -e "SELECT * FROM tenants;"
+
+# Voltar ao container
+exit
+```
+
+## 🚨 Solução de Problemas Comuns
+
+| Problema | Causa | Solução |
+|----------|-------|---------|
+| 502 Bad Gateway | NGINX não alcança container app | Verificar `depends_on`, rede, e `app:3010` acessível internamente |
+| 504 Gateway Timeout | WebSocket desconectando | Verificar `proxy_read_timeout` no NGINX (86400) e `connection-timeout` do Baileys |
+| 404 API routes | Router Express não matched | Verificar se `app` service está `healthy` e `depends_on` OK |
+| Redis connection lost | Redis sobrecarregado | Aumentar `--maxmemory` ou adicionar mais memória à VPS |
+| Subdomain não resolve tenant | `TENANT_RESOLUTION_MODE` errado | Definir `subdomain` no .env e NGINX `X-Forwarded-Host` |
+| SSL certificate erro | Certbot não renovou | Verificar cron do certbot e DNS A record |
+| Login admin falha | Hash senha antigo | Resetar via SQL: `UPDATE admin SET password='...' WHERE email='admin@admin.com'` |
+| MongoDB connection error | Porta 27017 em conflito | Mudar no docker-compose para 27018 e atualizar `MONGO_URI` |
+
+## 💡 Dicas de Otimização para KVM 4 (4 vCPU / 16 GB)
+
+- **CPU**: O app usa no máximo 3 vCPU; o restante para NGINX, Redis, MariaDB. Se usar mais, verificar loops infinitos ou queries não indexadas.
+- **RAM**: 10G para app + 6G para MariaDB + 2.5G para Redis + 3G para Mongo = ~21.5G. A VPS tem 16GB. **Otimizar**: reduzir `innodb-buffer-pool-size` para 3G se não tiver muitos dados, ou aumentar swap.
+- **NVMe 200GB**: Suficiente para banco + mídia + backups. Manter backups fora do servidor (S3/MinIO) recomendado.
+- **Banda 16TB**: Suficiente para WhatsApp + tráfego de API. Monitorar com `iftop` ou `nethogs`.
+
+## 📞 Suporte Pós-Deploy
+
+- **Login admin**: `https://app.gstd.com.br/admin/login` (admin@admin.com / admin123)
+- **Super Admin**: `https://app.gstd.com.br/superadmin/login` (usar credenciais criadas na migração)
+- **Dashboard tenant**: `https://NOME_DO_TENANTE.app.gstd.com.br/dashboard`
+- **Logs**: `docker compose logs -f app` ou visualizar em `/opt/whatscrm/logs/`

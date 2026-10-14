@@ -4,6 +4,9 @@ const randomstring = require("randomstring");
 const bcrypt = require("bcrypt");
 const { sign } = require("jsonwebtoken");
 const adminValidator = require("../middlewares/admin.js");
+const superAdminValidator = require("../middlewares/superAdmin.js");
+const tenantMiddleware = require("../middlewares/tenant.js");
+const { v4: uuidv4 } = require("uuid");
 const {
   updateUserPlan,
   getFileExtension,
@@ -2005,6 +2008,294 @@ router.post("/test_inbox_db", adminValidator, async (req, res) => {
       success: false,
       msg: `Connection failed: ${err.message}`,
     });
+  }
+});
+
+// ============================================================
+// SUPER ADMIN - Painel global da plataforma (/superadmin)
+// Rotas ADITIVAS: nao substituem nenhuma rota existente.
+// ============================================================
+
+// Login do Super Admin (tabela super_admins - acesso global)
+router.post("/superadmin/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.json({ success: false, msg: "Please fill email and password" });
+    }
+
+    let rows;
+    try {
+      rows = await query(`SELECT * FROM super_admins WHERE email = ?`, [email]);
+    } catch (dbErr) {
+      // Migracao ainda nao aplicada -> orienta o operador
+      return res.json({
+        success: false,
+        msg: "Migracao multi-tenant nao aplicada. Execute database/migrations/20261014_multi_tenant_core.sql",
+      });
+    }
+
+    if (rows.length < 1) {
+      return res.json({ success: false, msg: "Invalid credentials" });
+    }
+
+    const sa = rows[0];
+    const compare = await bcrypt.compare(password, sa.password);
+    if (!compare) {
+      return res.json({ success: false, msg: "Invalid credentials" });
+    }
+
+    const token = sign(
+      {
+        uid: sa.uid || `sa_${sa.id}`,
+        email: sa.email,
+        role: "super_admin",
+        is_global: 1,
+      },
+      process.env.JWTKEY,
+      { expiresIn: "12h" },
+    );
+
+    try {
+      await query(`UPDATE super_admins SET last_login_at = NOW() WHERE id = ?`, [
+        sa.id,
+      ]);
+    } catch (e) {
+      logger.log(e);
+    }
+
+    res.json({ success: true, token, role: "super_admin", name: sa.name });
+  } catch (err) {
+    logger.log(err);
+    res.json({ success: false, msg: "something went wrong" });
+  }
+});
+
+// Listar todos os tenants
+router.get("/superadmin/tenants", superAdminValidator, async (req, res) => {
+  try {
+    const data = await query(
+      `SELECT t.*,
+              (SELECT COUNT(*) FROM tenant_users tu WHERE tu.tenant_id = t.id AND tu.is_active = 1) as users_count,
+              (SELECT COUNT(*) FROM instance i WHERE i.tenant_id = t.id) as instances_count
+         FROM tenants t
+        ORDER BY t.created_at DESC`,
+    );
+    res.json({ success: true, data });
+  } catch (err) {
+    logger.log(err);
+    res.json({
+      success: false,
+      msg: "Erro ao listar tenants (migracao pendente?)",
+      error: err.message,
+    });
+  }
+});
+
+// Criar tenant (clinica)
+router.post("/superadmin/tenants", superAdminValidator, async (req, res) => {
+  try {
+    const { name, slug, domain, plan_id, owner_email } = req.body;
+
+    if (!name || !slug) {
+      return res.json({ success: false, msg: "Nome e slug sao obrigatorios" });
+    }
+
+    if (!/^[a-z0-9-]+$/.test(slug)) {
+      return res.json({
+        success: false,
+        msg: "Slug deve conter apenas minusculas, numeros e hifens",
+      });
+    }
+
+    const existing = await query(`SELECT id FROM tenants WHERE slug = ?`, [slug]);
+    if (existing.length > 0) {
+      return res.json({ success: false, msg: "Slug ja existe. Escolha outro." });
+    }
+
+    if (domain) {
+      const exDom = await query(`SELECT id FROM tenants WHERE domain = ?`, [domain]);
+      if (exDom.length > 0) {
+        return res.json({ success: false, msg: "Dominio ja esta em uso" });
+      }
+    }
+
+    const uid = uuidv4();
+    const now = new Date();
+
+    await query(
+      `INSERT INTO tenants (uid, slug, name, domain, status, plan_id, trial_ends_at, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [
+        uid,
+        slug,
+        name,
+        domain || null,
+        "trial",
+        plan_id || null,
+        new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000), // trial 7 dias
+        now,
+        now,
+      ],
+    );
+
+    const inserted = await query(`SELECT id FROM tenants WHERE slug = ?`, [slug]);
+    const tenantId = inserted[0]?.id;
+
+    // Vincula o dono (usuario existente) ao tenant
+    if (owner_email) {
+      const ownerRows = await query(`SELECT uid FROM user WHERE email = ?`, [
+        owner_email,
+      ]);
+      const ownerUid = ownerRows.length
+        ? ownerRows[0].uid
+        : req.decode?.uid || null;
+
+      if (ownerUid) {
+        await query(
+          `INSERT INTO tenant_users (tenant_id, user_uid, role, is_active, joined_at, created_at)
+           VALUES (?,?,?,?,?,?)`,
+          [tenantId, ownerUid, "owner", 1, now, now],
+        );
+      }
+    }
+
+    res.json({
+      success: true,
+      msg: "Tenant criado com sucesso",
+      data: { id: tenantId, slug, url: `https://${slug}.app.gstd.com.br` },
+    });
+  } catch (err) {
+    logger.log(err);
+    res.json({ success: false, msg: "Erro ao criar tenant", error: err.message });
+  }
+});
+
+// Detalhes do tenant
+router.get(
+  "/superadmin/tenants/:tenantId",
+  superAdminValidator,
+  async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      const tenant = await query(`SELECT * FROM tenants WHERE id = ?`, [tenantId]);
+      if (!tenant.length) {
+        return res.json({ success: false, msg: "Tenant nao encontrado" });
+      }
+
+      const users = await query(
+        `SELECT u.uid, u.name, u.email, tu.role, tu.joined_at
+           FROM tenant_users tu
+           JOIN user u ON u.uid = tu.user_uid
+          WHERE tu.tenant_id = ? AND tu.is_active = 1
+          ORDER BY u.name`,
+        [tenantId],
+      );
+
+      res.json({ success: true, data: { tenant: tenant[0], users } });
+    } catch (err) {
+      logger.log(err);
+      res.json({ success: false, msg: "something went wrong", error: err.message });
+    }
+  },
+);
+
+// Suspender / reativar tenant
+router.post(
+  "/superadmin/tenants/:tenantId/status",
+  superAdminValidator,
+  async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      const { status } = req.body;
+      const allowed = ["active", "suspended", "trial", "expired"];
+
+      if (!allowed.includes(status)) {
+        return res.json({ success: false, msg: "Status invalido" });
+      }
+
+      await query(
+        `UPDATE tenants SET status = ?, updated_at = NOW() WHERE id = ?`,
+        [status, tenantId],
+      );
+
+      res.json({ success: true, msg: `Tenant atualizado para "${status}"` });
+    } catch (err) {
+      logger.log(err);
+      res.json({ success: false, msg: "something went wrong", error: err.message });
+    }
+  },
+);
+
+// Convidar / vincular usuario ao tenant
+router.post(
+  "/superadmin/tenants/:tenantId/invite",
+  superAdminValidator,
+  async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      const { email, role } = req.body;
+      const allowedRoles = ["owner", "admin", "manager", "agent"];
+
+      if (!email) {
+        return res.json({ success: false, msg: "Email obrigatorio" });
+      }
+      const finalRole = allowedRoles.includes(role) ? role : "agent";
+
+      const userRows = await query(`SELECT uid FROM user WHERE email = ?`, [email]);
+      if (!userRows.length) {
+        return res.json({
+          success: false,
+          msg: "Usuario nao encontrado. Faca o signup primeiro.",
+        });
+      }
+      const userUid = userRows[0].uid;
+
+      const already = await query(
+        `SELECT id FROM tenant_users WHERE user_uid = ? AND tenant_id = ?`,
+        [userUid, tenantId],
+      );
+      if (already.length) {
+        return res.json({ success: false, msg: "Usuario ja pertence ao tenant" });
+      }
+
+      const now = new Date();
+      await query(
+        `INSERT INTO tenant_users (tenant_id, user_uid, role, is_active, invited_by, joined_at, created_at)
+         VALUES (?,?,?,?,?,?,?)`,
+        [tenantId, userUid, finalRole, 1, req.decode?.uid || null, now, now],
+      );
+
+      res.json({ success: true, msg: "Usuario vinculado ao tenant" });
+    } catch (err) {
+      logger.log(err);
+      res.json({ success: false, msg: "something went wrong", error: err.message });
+    }
+  },
+);
+
+// Status global da plataforma (healthcheck do painel super admin)
+router.get("/superadmin/platform-status", superAdminValidator, async (req, res) => {
+  try {
+    const tenants = await query(`SELECT COUNT(*) as c FROM tenants`);
+    const active = await query(
+      `SELECT COUNT(*) as c FROM tenants WHERE status = 'active'`,
+    );
+    const users = await query(
+      `SELECT COUNT(*) as c FROM tenant_users WHERE is_active = 1`,
+    );
+    res.json({
+      success: true,
+      data: {
+        tenants: tenants[0]?.c || 0,
+        active_tenants: active[0]?.c || 0,
+        tenant_users: users[0]?.c || 0,
+        platform: "WhatsCRM Multi-Tenant",
+      },
+    });
+  } catch (err) {
+    logger.log(err);
+    res.json({ success: false, msg: "something went wrong", error: err.message });
   }
 });
 

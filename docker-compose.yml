@@ -44,6 +44,8 @@ services:
     volumes:
       - db_data:/var/lib/mysql
       - ./database/import.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      # Multi-tenant: idempotente, seguro no primeiro boot do volume
+      - ./database/migrations/20261014_multi_tenant_core.sql:/docker-entrypoint-initdb.d/02-multitenant.sql:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s

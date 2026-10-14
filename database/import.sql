@@ -88,6 +88,7 @@ DROP TABLE IF EXISTS `agent_task`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `agent_task` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `owner_uid` varchar(999) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
   `title` varchar(999) DEFAULT NULL,
@@ -95,6 +96,7 @@ CREATE TABLE `agent_task` (
   `agent_comments` longtext DEFAULT NULL,
   `status` varchar(999) DEFAULT NULL,
   `createdAt` timestamp NULL DEFAULT current_timestamp(),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -105,7 +107,7 @@ CREATE TABLE `agent_task` (
 
 LOCK TABLES `agent_task` WRITE;
 /*!40000 ALTER TABLE `agent_task` DISABLE KEYS */;
-INSERT INTO `agent_task` VALUES
+INSERT INTO `agent_task` (`id`,`owner_uid`,`uid`,`title`,`description`,`agent_comments`,`status`,`createdAt`) VALUES
 (2,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','n9xrxIvwIajEo2JO2poQ0b3UyUnhUF3g','holiday ','tell all customer that its holiday','this was done','COMPLETED','2024-04-09 06:51:55');
 /*!40000 ALTER TABLE `agent_task` ENABLE KEYS */;
 UNLOCK TABLES;
@@ -119,6 +121,7 @@ DROP TABLE IF EXISTS `agents`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `agents` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `owner_uid` varchar(999) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
   `role` varchar(999) DEFAULT 'agent',
@@ -139,6 +142,7 @@ CREATE TABLE `agents` (
   KEY `idx_owner_uid` (`owner_uid`(150)),
   KEY `idx_uid` (`uid`(150)),
   KEY `idx_owner_active` (`owner_uid`(150),`is_active`),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   KEY `idx_id` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -149,7 +153,7 @@ CREATE TABLE `agents` (
 
 LOCK TABLES `agents` WRITE;
 /*!40000 ALTER TABLE `agents` DISABLE KEYS */;
-INSERT INTO `agents` VALUES
+INSERT INTO `agents` (`id`,`owner_uid`,`uid`,`role`,`email`,`password`,`name`,`mobile`,`comments`,`is_active`,`createdAt`,`logs`,`mask_number`,`allow_send_new_qr`,`allow_save_contact`,`fcm_data`,`tokenVersion`) VALUES
 (3,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','n9xrxIvwIajEo2JO2poQ0b3UyUnhUF3g','agent','john@agent.com','$2b$10$JGNSEHq.tErhcQKmvuh6PuWCVXWzxWIZ.WrnkuDNp8izuDgsWkZi.','john','7778888000','some comments',1,'2024-04-06 06:45:15','{\"dateTracking\":{\"2025-06-03\":{\"logins\":3,\"logouts\":3,\"lastLogin\":\"2025-06-03T12:44:57.454Z\",\"lastLogout\":\"2025-06-03T12:45:18.979Z\"},\"2025-06-07\":{\"logins\":2,\"logouts\":0,\"lastLogin\":\"2025-06-07T05:31:42.255Z\",\"lastLogout\":null},\"2025-07-18\":{\"logins\":1,\"logouts\":0,\"lastLogin\":\"2025-07-18T15:53:50.351Z\",\"lastLogout\":null},\"2025-08-27\":{\"logins\":1,\"logouts\":0,\"lastLogin\":\"2025-08-27T06:39:14.204Z\",\"lastLogout\":null},\"2025-11-12\":{\"logins\":20,\"logouts\":0,\"lastLogin\":\"2025-11-12T09:45:40.400Z\",\"lastLogout\":null},\"2025-11-13\":{\"logins\":1,\"logouts\":0,\"lastLogin\":\"2025-11-13T14:06:29.542Z\",\"lastLogout\":null},\"2025-12-12\":{\"logins\":1,\"logouts\":0,\"lastLogin\":\"2025-12-12T09:57:34.017Z\",\"lastLogout\":\"2025-12-12T09:57:17.490Z\"},\"2025-12-16\":{\"logins\":1,\"logouts\":0,\"lastLogin\":\"2025-12-16T13:00:33.155Z\",\"lastLogout\":null},\"2026-02-24\":{\"logins\":1,\"logouts\":0,\"lastLogin\":\"2026-02-24T12:34:22.234Z\",\"lastLogout\":null},\"2026-03-27\":{\"logins\":1,\"logouts\":0,\"lastLogin\":\"2026-03-27T12:51:11.041Z\",\"lastLogout\":null},\"2026-03-30\":{\"logins\":1,\"logouts\":1,\"lastLogin\":\"2026-03-30T09:06:42.092Z\",\"lastLogout\":\"2026-03-30T09:07:00.062Z\"},\"2026-04-01\":{\"logins\":0,\"logouts\":0,\"lastLogin\":null,\"lastLogout\":\"2026-04-01T11:24:36.586Z\"}},\"spendTime\":{\"2025-06-03\":55,\"2025-06-04\":260,\"2025-06-07\":70,\"2025-06-10\":415,\"2025-07-18\":150,\"2025-08-27\":10,\"2025-09-16\":2997,\"2025-10-02\":710,\"2025-10-04\":220,\"2025-11-12\":2040,\"2025-11-13\":95,\"2025-12-12\":15,\"2025-12-16\":40,\"2026-02-24\":40,\"2026-03-27\":685,\"2026-03-30\":10,\"2026-04-01\":10,\"2026-04-12\":185}}',1,1,1,'{\"tokens\":[\"djqWYcy7pkv8tuIe2QFteW:APA91bH0NlSDTjKMoHer1cxTtlcUA5_HT-Ucm3MtOnqKkIADvRp15dIB3t2B2alL2Ws0Bcey3StAfauqqJB245kYLSTL4N1WfSlXZEzDJU_Bv-Tr6tQlE6E\"],\"other\":{\"platform\":\"iOS\",\"apnsToken\":\"2A4E1FF4F091B67515F4258BAA941FED64EECCE4B4382A7D46D9E3A2BB6CD723\"}}',0),
 (4,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','v8Odk2djveUs7A4kCFjO7acUiJJ5W266','agent','agent2@gmail.com','$2b$10$SNCpyR2GomNteU3wdUsN3eYOlckvp4Uq7T148TeqtVBEll3KZXGRK','Paul','123','this is new',1,'2025-07-18 15:34:19','{\"spendTime\":{\"2025-07-18\":295,\"2025-09-02\":1380,\"2026-04-01\":15},\"dateTracking\":{\"2025-07-18\":{\"logins\":1,\"logouts\":0,\"lastLogin\":\"2025-07-18T15:53:34.162Z\",\"lastLogout\":null}}}',1,1,0,NULL,0),
 (5,'IYacxSP6xyxBYvmH65ub789IUFzBTfL5','f7MZX4kuVcaULEldCcWxZ9Jj4Y1mr42d','agent','mm@bea.mr','$2b$10$mJNQasIM2efXr4yUozWNkOon1.YuPm3OIt8TydlF/EkGhIyZFTKZK','Amanty','22222222442',NULL,1,'2025-12-03 13:18:11','{\"dateTracking\":{\"2025-12-03\":{\"logins\":1,\"logouts\":0,\"lastLogin\":\"2025-12-03T13:18:55.923Z\",\"lastLogout\":null}},\"spendTime\":{\"2025-12-03\":138}}',1,1,1,'{\"tokens\":[\"dsJs5lxCST2MREK34HGVfp:APA91bE34d3ssNvWzHOfaZDNwfTmGVnQlL4ykUr0b0Z4nUc9lFSzJekHD8GeJ09fGvAxYJ857atm2CInmHBC0QEbIJaQDIID7Pm6HW_P8Xf1issygeqY18I\"],\"other\":{\"platform\":\"Android\"}}',0),
@@ -195,6 +199,7 @@ DROP TABLE IF EXISTS `beta_api_logs`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `beta_api_logs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
   `msg_id` varchar(999) DEFAULT NULL,
   `request` longtext DEFAULT NULL,
@@ -202,6 +207,7 @@ CREATE TABLE `beta_api_logs` (
   `response` longtext DEFAULT NULL,
   `status` varchar(999) DEFAULT NULL,
   `createdAt` timestamp NULL DEFAULT current_timestamp(),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -212,7 +218,7 @@ CREATE TABLE `beta_api_logs` (
 
 LOCK TABLES `beta_api_logs` WRITE;
 /*!40000 ALTER TABLE `beta_api_logs` DISABLE KEYS */;
-INSERT INTO `beta_api_logs` VALUES
+INSERT INTO `beta_api_logs` (`id`,`uid`,`msg_id`,`request`,`err`,`response`,`status`,`createdAt`) VALUES
 (1,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8',NULL,'{\"to\":\"919690309316\",\"type\":\"text\",\"text\":{\"preview_url\":false,\"body\":\"this sent from API\"}}',NULL,'{\"success\":false,\"message\":\"Error validating access token: Session has expired on Friday, 22-Aug-25 07:00:00 PDT. The current time is Sunday, 24-Aug-25 06:15:08 PDT.\"}','failed','2025-08-24 13:15:11'),
 (3,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','wamid.HBgMOTE5NjkwMzA5MzE2FQIAERgSRjM4MjIwMkFERDBBMEFFRENDAA==','{\"sendTo\":\"919690309316\",\"waNumId\":\"230745540118212\",\"waToken\":\"EAAQI9Tit5nABPbBZBTlim3D7ohP74SRocPmajAVYhtKAX2ZAIrzzQZAte2RqO9CWdZAvES4XmaCPvBZCT9XtmZBH4uAvoxGSxSkiqiglGvGZCJ884HydA1tG29uZAN4wBe5JZA83vE8Fo760KS7ZBX4GuOLfr5i0semfNqpXMBm0buN95KgoHyo77ZC1S5lrgYVoloDQgVxR474rZCQrafWE0SZBfXaFuWHh8jOvQDCaklSmmaI1kZCvAZD\",\"templetData\":{\"name\":\"new_templet_without_media\",\"parameter_format\":\"POSITIONAL\",\"components\":[{\"type\":\"BODY\",\"text\":\"Lorem {{1}} ipsum dolor sit amet, consectetur adipiscing elit. Etiam a tincidunt leo. Nam aliquet justo id lorem semper, ut eleifend quam congue. Sed efficitur, nibh vel pulvinar interdum, ipsum lacus varius ligula, id cursus arcu orci id nibh. Maecenas pretium velit eros, et pretium lacus blandit nec.\",\"example\":{\"body_text\":[[\"John\"]]}},{\"type\":\"BUTTONS\",\"buttons\":[{\"type\":\"QUICK_REPLY\",\"text\":\"Reply us\"},{\"type\":\"QUICK_REPLY\",\"text\":\"Stop this\"}]}],\"language\":\"en_US\",\"status\":\"APPROVED\",\"category\":\"MARKETING\",\"id\":\"1197182588434772\"},\"exampleArr\":[],\"dynamicMedia\":\"OptionalMediaUri\"}',NULL,'{\"messaging_product\":\"whatsapp\",\"contacts\":[{\"input\":\"919690309316\",\"wa_id\":\"919690309316\"}],\"messages\":[{\"id\":\"wamid.HBgMOTE5NjkwMzA5MzE2FQIAERgSRjM4MjIwMkFERDBBMEFFRENDAA==\",\"message_status\":\"accepted\"}]}','read','2025-08-24 13:30:16');
 /*!40000 ALTER TABLE `beta_api_logs` ENABLE KEYS */;
@@ -227,6 +233,7 @@ DROP TABLE IF EXISTS `beta_campaign`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `beta_campaign` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `campaign_id` varchar(999) NOT NULL,
   `uid` varchar(999) NOT NULL,
   `title` varchar(999) NOT NULL,
@@ -247,6 +254,7 @@ CREATE TABLE `beta_campaign` (
   `timezone` varchar(999) DEFAULT NULL,
   `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
   `template_type` varchar(20) DEFAULT 'STANDARD',
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -257,7 +265,7 @@ CREATE TABLE `beta_campaign` (
 
 LOCK TABLES `beta_campaign` WRITE;
 /*!40000 ALTER TABLE `beta_campaign` DISABLE KEYS */;
-INSERT INTO `beta_campaign` VALUES
+INSERT INTO `beta_campaign` (`id`,`campaign_id`,`uid`,`title`,`template_name`,`template_language`,`phonebook_id`,`phonebook_name`,`status`,`total_contacts`,`sent_count`,`delivered_count`,`read_count`,`failed_count`,`body_variables`,`header_variable`,`button_variables`,`schedule`,`timezone`,`createdAt`,`template_type`) VALUES
 (6,'RQUFIFc6Uk','lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','ab','util_test','ml','37','Codeyon','COMPLETED',1,1,0,0,0,'[]','null','[]','2025-08-07 16:08:00',NULL,'2025-08-07 16:07:36','STANDARD'),
 (7,'NcBxsHH2kO','OnjWZ9wHtdqTrAnZL32DgYbZjs3UZlis','te','app_otp','en_US','39','code','COMPLETED',1,0,0,0,1,'[\"123334\"]','null','[{\"index\":0,\"value\":\"\"}]',NULL,NULL,'2025-09-09 09:26:40','STANDARD'),
 (8,'RlW2L4Ljex','OnjWZ9wHtdqTrAnZL32DgYbZjs3UZlis','asd','app_otp','en_US','39','code','COMPLETED',1,0,0,0,1,'[\"122212\"]','null','[{\"index\":0,\"value\":\"copy it\"}]',NULL,NULL,'2025-09-09 09:27:04','STANDARD'),
@@ -276,6 +284,7 @@ DROP TABLE IF EXISTS `beta_campaign_logs`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `beta_campaign_logs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `uid` varchar(999) NOT NULL,
   `campaign_id` varchar(999) NOT NULL,
   `contact_name` varchar(999) NOT NULL,
@@ -286,6 +295,7 @@ CREATE TABLE `beta_campaign_logs` (
   `delivery_time` varchar(999) DEFAULT NULL,
   `error_message` longtext DEFAULT NULL,
   `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -296,7 +306,7 @@ CREATE TABLE `beta_campaign_logs` (
 
 LOCK TABLES `beta_campaign_logs` WRITE;
 /*!40000 ALTER TABLE `beta_campaign_logs` DISABLE KEYS */;
-INSERT INTO `beta_campaign_logs` VALUES
+INSERT INTO `beta_campaign_logs` (`id`,`uid`,`campaign_id`,`contact_name`,`contact_mobile`,`meta_msg_id`,`status`,`delivery_status`,`delivery_time`,`error_message`,`createdAt`) VALUES
 (5,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','RQUFIFc6Uk','codeyon','918430088300','wamid.HBgMOTE4NDMwMDg4MzAwFQIAERgSNkYxNzA3MTFGMjNGNkVFMkQ2AA==','SENT',NULL,NULL,NULL,'2025-08-07 16:07:41'),
 (6,'OnjWZ9wHtdqTrAnZL32DgYbZjs3UZlis','NcBxsHH2kO','codeyon','918430088300',NULL,'FAILED',NULL,NULL,'(#132001) Template name does not exist in the translation','2025-09-09 09:26:42'),
 (7,'OnjWZ9wHtdqTrAnZL32DgYbZjs3UZlis','RlW2L4Ljex','codeyon','918430088300',NULL,'FAILED',NULL,NULL,'(#132001) Template name does not exist in the translation','2025-09-09 09:27:07'),
@@ -315,6 +325,7 @@ DROP TABLE IF EXISTS `beta_chatbot`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `beta_chatbot` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
   `source` varchar(999) DEFAULT 'wa_chatbot',
   `title` varchar(999) DEFAULT NULL,
@@ -327,6 +338,7 @@ CREATE TABLE `beta_chatbot` (
   KEY `idx_uid_active` (`uid`(150),`active`),
   KEY `idx_uid_origin` (`uid`(100),`origin_id`(100)),
   KEY `idx_uid_flow` (`uid`(120),`flow_id`(120)),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   KEY `idx_uid_source_active` (`uid`(100),`source`(50),`active`)
 ) ENGINE=InnoDB AUTO_INCREMENT=123 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -337,7 +349,7 @@ CREATE TABLE `beta_chatbot` (
 
 LOCK TABLES `beta_chatbot` WRITE;
 /*!40000 ALTER TABLE `beta_chatbot` DISABLE KEYS */;
-INSERT INTO `beta_chatbot` VALUES
+INSERT INTO `beta_chatbot` (`id`,`uid`,`source`,`title`,`flow_id`,`active`,`origin`,`origin_id`,`createdAt`) VALUES
 (111,'XCUNoN5r9s37fQsVdekFqam7Lk6TlYGZ','instagram_chatbot','sample 1','2',1,'{\"title\":\"@spike_reach\",\"code\":\"INSTAGRAM\",\"data\":{\"id\":7,\"uid\":\"XCUNoN5r9s37fQsVdekFqam7Lk6TlYGZ\",\"webhook_id\":\"17841466206006088\",\"ig_graph_id\":\"27038428842452534\",\"user_id\":\"17841466206006088\",\"username\":\"spike_reach\",\"name\":\"Spike Reach\",\"profile_pic\":\"https://scontent-bom5-2.cdninstagram.com/v/t51.2885-19/444139466_962858638485487_470893310292229392_n.jpg?stp=dst-jpg_s206x206_tt6&_nc_cat=107&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D&_nc_ohc=I98CxcGTlyEQ7kNvwGsOBlr&_nc_oc=AdryuvYDlvscxJbo0tiQBc5raS5q4S39sPPAUc0xKhhTtRZAGfb_EXQGUIfcG1M2Mof98xsNGfkycOdsJti5kQIr&_nc_zt=24&_nc_ht=scontent-bom5-2.cdninstagram.com&edm=AP4hL3IEAAAA&_nc_tpa=Q5bMBQHBjAfgdgQPm8vjNNvbNKHf88CFMuLsT0xqhke95fnirJtk3k30D0NPKQcxCrDyEIgpvur2cHDgkQ&oh=00_Af20lvhFQZr9ReC9C1r48qCpYkXsgr7bXDOoQUMzPBKRlw&oe=69F8E0C7\",\"token_type\":\"bearer\",\"expires_in\":5184000,\"connected_at\":\"2026-04-30T09:45:22.000Z\",\"createdAt\":\"2026-04-30T09:45:22.000Z\"}}','17841466206006088','2026-04-30 10:00:30'),
 (112,'bNaDKizgcV7C19RYLZ6bBBH8beVhPpZY','instagram_chatbot','newinsta','DDInMCUfbfVXfIqdXtDhTbxWNViqiyEe',1,'{\"title\":\"@reviewcard.in\",\"code\":\"INSTAGRAM\",\"data\":{\"id\":8,\"uid\":\"bNaDKizgcV7C19RYLZ6bBBH8beVhPpZY\",\"webhook_id\":\"17841465298970477\",\"ig_graph_id\":\"35497935243186241\",\"user_id\":\"17841465298970477\",\"username\":\"reviewcard.in\",\"name\":\"Amit Gurnani\",\"profile_pic\":\"https://scontent-bom5-2.cdninstagram.com/v/t51.2885-19/431233319_924894519296873_1088361452295886230_n.jpg?stp=dst-jpg_s206x206_tt6&_nc_cat=108&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy41NTAuQzMifQ%3D%3D&_nc_ohc=46JOQkhQEvIQ7kNvwFIPlR1&_nc_oc=AdquxanTTFdw5hBchwI4vKS5j-zoWo-CKeloDkI5L0Llq_iBx_DqHzugKEYlsO7_LWuUCcuyhEIK4rdn5MFszSuH&_nc_zt=24&_nc_ht=scontent-bom5-2.cdninstagram.com&edm=AP4hL3IEAAAA&_nc_tpa=Q5bMBQFDMtBDEHdQsGLGsITMSJmRay8c1AOxU4P32gJWAtlkFNmsJZzB0G2XrnfjxiASFwsiELtsuuC-2A&oh=00_Af10kFk5R4cNu6cI7cTMmla3UW27w-xYc2EXcgRVBPKqdw&oe=69F8DB78\",\"token_type\":\"bearer\",\"expires_in\":5183999,\"connected_at\":\"2026-04-30T09:45:59.000Z\",\"createdAt\":\"2026-04-30T09:45:59.000Z\"}}','17841465298970477','2026-04-30 10:02:04'),
 (113,'rfyiXC3ayqCpvDumCj2vhDGtA4JDI8E4','instagram_chatbot','demo','gEgnC5XiGmoW0wC0S0evKLEefjQH7POe',1,'{\"title\":\"@rudra0l0ove\",\"code\":\"INSTAGRAM\",\"data\":{\"id\":9,\"uid\":\"rfyiXC3ayqCpvDumCj2vhDGtA4JDI8E4\",\"webhook_id\":\"17841449573671364\",\"ig_graph_id\":\"35163456269966776\",\"user_id\":\"17841449573671364\",\"username\":\"rudra0l0ove\",\"name\":\"Rudra Pratap Singh\",\"profile_pic\":\"https://scontent-bom5-1.cdninstagram.com/v/t51.2885-19/244646199_651942619127228_7273382828401975650_n.jpg?stp=dst-jpg_s206x206_tt6&_nc_cat=105&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy43MjAuQzMifQ%3D%3D&_nc_ohc=y58VutqVyMUQ7kNvwHfYfaO&_nc_oc=AdpFjFtiZimnYTVvYN4OejTdXDybFMoCTLme8RLIu_GlyMy8mLa4DgEPs41xaqeCuGD8D3Q_82M8W3MoABD6PEah&_nc_zt=24&_nc_ht=scontent-bom5-1.cdninstagram.com&edm=AP4hL3IEAAAA&_nc_tpa=Q5bMBQGSWAm2SmtnDwbYKgXv9l9qoCE3djoU773LZdOUSRsumbqezrnYG1Jo_UO1siP0cDJMq5iCS_R5Qw&oh=00_Af21eC3ZZmFaY0895lB-PdOX_crvBg3zlH8R14TlTPtePQ&oe=69F8F3A1\",\"token_type\":\"bearer\",\"expires_in\":5183981,\"connected_at\":\"2026-04-30T09:48:28.000Z\",\"createdAt\":\"2026-04-30T09:48:10.000Z\"}}','17841449573671364','2026-04-30 12:03:21');
@@ -353,6 +365,7 @@ DROP TABLE IF EXISTS `beta_chats`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `beta_chats` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
   `old_chat_id` varchar(999) DEFAULT NULL,
   `profile` longtext DEFAULT NULL,
@@ -376,6 +389,7 @@ CREATE TABLE `beta_chats` (
   KEY `idx_sender_mobile` (`sender_mobile`(150)),
   KEY `idx_uid_unread` (`uid`(150),`unread_count`),
   KEY `idx_uid_origin_updated` (`uid`(80),`origin`(50)),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   KEY `idx_beta_chats_uid_updatedAt` (`uid`(100),`updatedAt`)
 ) ENGINE=InnoDB AUTO_INCREMENT=68 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -386,7 +400,7 @@ CREATE TABLE `beta_chats` (
 
 LOCK TABLES `beta_chats` WRITE;
 /*!40000 ALTER TABLE `beta_chats` DISABLE KEYS */;
-INSERT INTO `beta_chats` VALUES
+INSERT INTO `beta_chats` (`id`,`uid`,`old_chat_id`,`profile`,`origin_instance_id`,`chat_id`,`last_message`,`chat_label`,`chat_note`,`sender_name`,`sender_mobile`,`unread_count`,`origin`,`assigned_agent`,`createdAt`,`updatedAt`,`kanban_order`) VALUES
 (5,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8',NULL,'{\"profileImage\":\"media/telegram/profiles/lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8_ka8X3kJM/8584177993_1771908218240_0x8rcFmu.jpg\"}','{\"id\":\"8584177993\",\"name\":\"Mom\"}','8584177993@telegram','{\"type\":\"text\",\"metaChatId\":\"tg_6653\",\"msgContext\":{\"type\":\"text\",\"text\":{\"preview_url\":true,\"body\":\"Thanks for choosing support\"}},\"reaction\":\"\",\"timestamp\":1771908456,\"senderName\":\"Mom\",\"senderMobile\":\"8584177993\",\"star\":0,\"route\":\"OUTGOING\",\"context\":null,\"origin\":\"telegram\"}',NULL,NULL,'Mom','8584177993',0,'telegram',NULL,'2026-02-24 04:43:38','2026-02-24 04:47:42',0),
 (6,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8',NULL,'{\"profileImage\":\"media/telegram/profiles/lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8_ka8X3kJM/777000_1771908440184_NV8wngd0.jpg\"}','{\"id\":\"777000\",\"name\":\"Telegram\"}','777000@telegram','{\"type\":\"text\",\"metaChatId\":\"tg_6648\",\"msgContext\":{\"type\":\"text\",\"text\":{\"preview_url\":true,\"body\":\"Hello welcome to the telegram bot. Please choose an option to process\\n\\n1: Sales\\n2: Support\"}},\"reaction\":\"\",\"timestamp\":1771908444,\"senderName\":\"Telegram\",\"senderMobile\":\"777000\",\"star\":0,\"route\":\"OUTGOING\",\"context\":null,\"origin\":\"telegram\"}',NULL,NULL,'Telegram','777000',0,'telegram',NULL,'2026-02-24 04:47:21','2026-02-24 04:47:43',0),
 (9,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8',NULL,NULL,'{\"id\":\"917037300870\"}','meta_918430088300','{\"type\":\"text\",\"metaChatId\":\"wamid.HBgMOTE4NDMwMDg4MzAwFQIAEhgWM0VCMEMwN0FEMjUxQzI1Q0NDRTU1QwA=\",\"msgContext\":{\"type\":\"text\",\"text\":{\"body\":\"hello there\",\"preview_url\":true}},\"reaction\":\"\",\"timestamp\":\"1777390681\",\"senderName\":\"codeyon.com\",\"senderMobile\":\"918430088300\",\"status\":\"\",\"star\":false,\"route\":\"INCOMING\",\"context\":null,\"origin\":\"meta\"}','[]','[{\"email\":\"user@user.com\",\"name\":\"John Doe\",\"note\":\"This is a chat note\",\"rating\":10,\"craetedAt\":1775115254,\"id\":\"SgAIj\"}]','codeyon.com','918430088300',0,'meta','[{\"id\":3,\"owner_uid\":\"lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8\",\"uid\":\"n9xrxIvwIajEo2JO2poQ0b3UyUnhUF3g\",\"role\":\"agent\",\"email\":\"john@agent.com\",\"password\":\"$2b$10$JGNSEHq.tErhcQKmvuh6PuWCVXWzxWIZ.WrnkuDNp8izuDgsWkZi.\",\"name\":\"john\",\"mobile\":\"7778888000\",\"comments\":\"some comments\",\"is_active\":1,\"createdAt\":\"2024-04-06T01:15:15.000Z\",\"logs\":\"{\\\"dateTracking\\\":{\\\"2025-06-03\\\":{\\\"logins\\\":3,\\\"logouts\\\":3,\\\"lastLogin\\\":\\\"2025-06-03T12:44:57.454Z\\\",\\\"lastLogout\\\":\\\"2025-06-03T12:45:18.979Z\\\"},\\\"2025-06-07\\\":{\\\"logins\\\":2,\\\"logouts\\\":0,\\\"lastLogin\\\":\\\"2025-06-07T05:31:42.255Z\\\",\\\"lastLogout\\\":null},\\\"2025-07-18\\\":{\\\"logins\\\":1,\\\"logouts\\\":0,\\\"lastLogin\\\":\\\"2025-07-18T15:53:50.351Z\\\",\\\"lastLogout\\\":null},\\\"2025-08-27\\\":{\\\"logins\\\":1,\\\"logouts\\\":0,\\\"lastLogin\\\":\\\"2025-08-27T06:39:14.204Z\\\",\\\"lastLogout\\\":null},\\\"2025-11-12\\\":{\\\"logins\\\":20,\\\"logouts\\\":0,\\\"lastLogin\\\":\\\"2025-11-12T09:45:40.400Z\\\",\\\"lastLogout\\\":null},\\\"2025-11-13\\\":{\\\"logins\\\":1,\\\"logouts\\\":0,\\\"lastLogin\\\":\\\"2025-11-13T14:06:29.542Z\\\",\\\"lastLogout\\\":null},\\\"2025-12-12\\\":{\\\"logins\\\":1,\\\"logouts\\\":0,\\\"lastLogin\\\":\\\"2025-12-12T09:57:34.017Z\\\",\\\"lastLogout\\\":\\\"2025-12-12T09:57:17.490Z\\\"},\\\"2025-12-16\\\":{\\\"logins\\\":1,\\\"logouts\\\":0,\\\"lastLogin\\\":\\\"2025-12-16T13:00:33.155Z\\\",\\\"lastLogout\\\":null},\\\"2026-02-24\\\":{\\\"logins\\\":1,\\\"logouts\\\":0,\\\"lastLogin\\\":\\\"2026-02-24T12:34:22.234Z\\\",\\\"lastLogout\\\":null},\\\"2026-03-27\\\":{\\\"logins\\\":1,\\\"logouts\\\":0,\\\"lastLogin\\\":\\\"2026-03-27T12:51:11.041Z\\\",\\\"lastLogout\\\":null},\\\"2026-03-30\\\":{\\\"logins\\\":1,\\\"logouts\\\":1,\\\"lastLogin\\\":\\\"2026-03-30T09:06:42.092Z\\\",\\\"lastLogout\\\":\\\"2026-03-30T09:07:00.062Z\\\"}},\\\"spendTime\\\":{\\\"2025-06-03\\\":55,\\\"2025-06-04\\\":260,\\\"2025-06-07\\\":70,\\\"2025-06-10\\\":415,\\\"2025-07-18\\\":150,\\\"2025-08-27\\\":10,\\\"2025-09-16\\\":2997,\\\"2025-10-02\\\":710,\\\"2025-10-04\\\":220,\\\"2025-11-12\\\":2040,\\\"2025-11-13\\\":95,\\\"2025-12-12\\\":15,\\\"2025-12-16\\\":40,\\\"2026-02-24\\\":40,\\\"2026-03-27\\\":685,\\\"2026-03-30\\\":10}}\",\"mask_number\":1,\"allow_send_new_qr\":0,\"allow_save_contact\":1,\"fcm_data\":\"{\\\"tokens\\\":[\\\"djqWYcy7pkv8tuIe2QFteW:APA91bH0NlSDTjKMoHer1cxTtlcUA5_HT-Ucm3MtOnqKkIADvRp15dIB3t2B2alL2Ws0Bcey3StAfauqqJB245kYLSTL4N1WfSlXZEzDJU_Bv-Tr6tQlE6E\\\"],\\\"other\\\":{\\\"platform\\\":\\\"iOS\\\",\\\"apnsToken\\\":\\\"2A4E1FF4F091B67515F4258BAA941FED64EECCE4B4382A7D46D9E3A2BB6CD723\\\"}}\"}]','2026-03-26 20:47:58','2026-04-29 13:56:00',0),
@@ -409,6 +423,7 @@ DROP TABLE IF EXISTS `beta_conversation`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `beta_conversation` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `type` varchar(999) DEFAULT NULL,
   `chat_id` varchar(999) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
@@ -431,6 +446,7 @@ CREATE TABLE `beta_conversation` (
   KEY `idx_uid_metachatid` (`uid`(100),`metaChatId`(100)),
   KEY `idx_chat_timestamp` (`chat_id`(100)),
   KEY `idx_uid_chat_timestamp` (`uid`(50),`chat_id`(50)),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   KEY `idx_chat_type_route` (`chat_id`(80),`type`(50),`route`(50))
 ) ENGINE=InnoDB AUTO_INCREMENT=468 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -441,7 +457,7 @@ CREATE TABLE `beta_conversation` (
 
 LOCK TABLES `beta_conversation` WRITE;
 /*!40000 ALTER TABLE `beta_conversation` DISABLE KEYS */;
-INSERT INTO `beta_conversation` VALUES
+INSERT INTO `beta_conversation` (`id`,`type`,`chat_id`,`uid`,`status`,`metaChatId`,`msgContext`,`reaction`,`timestamp`,`senderName`,`senderMobile`,`star`,`route`,`context`,`origin`,`createdAt`,`sentBy`,`err`) VALUES
 (54,'text','8584177993@telegram','lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8',NULL,'tg_6637','{\"type\":\"text\",\"text\":{\"body\":\"hello from the telegram\",\"preview_url\":true}}','','1771908217','Mom','8584177993','0','INCOMING',NULL,'telegram','2026-02-24 04:43:38',NULL,NULL),
 (55,'text','8584177993@telegram','lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','sent','tg_6638','{\"type\":\"text\",\"text\":{\"preview_url\":true,\"body\":\"hello from the wacrm\"}}','','1771908228','Mom','8584177993','0','OUTGOING',NULL,'meta','2026-02-24 04:43:48','human',NULL),
 (56,'image','8584177993@telegram','lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','sent','tg_6639','{\"type\":\"image\",\"image\":{\"link\":\"http://localhost:3000/media/Hf3d8BzqDwFL0CF0IcRUuO2lnzQbJWD2.png\",\"caption\":\"Hello from the whatscrm\"}}','','1771908248','Mom','8584177993','0','OUTGOING',NULL,'meta','2026-02-24 04:44:08','human',NULL),
@@ -618,6 +634,7 @@ DROP TABLE IF EXISTS `beta_flows`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `beta_flows` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `is_active` int(11) DEFAULT 1,
   `uid` varchar(999) DEFAULT NULL,
   `flow_id` varchar(999) DEFAULT NULL,
@@ -627,6 +644,7 @@ CREATE TABLE `beta_flows` (
   `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_uid_active_source` (`uid`(120),`is_active`,`source`(50)),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   KEY `idx_uid_flow` (`uid`(120),`flow_id`(120))
 ) ENGINE=InnoDB AUTO_INCREMENT=77 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -637,7 +655,7 @@ CREATE TABLE `beta_flows` (
 
 LOCK TABLES `beta_flows` WRITE;
 /*!40000 ALTER TABLE `beta_flows` DISABLE KEYS */;
-INSERT INTO `beta_flows` VALUES
+INSERT INTO `beta_flows` (`id`,`is_active`,`uid`,`flow_id`,`source`,`name`,`data`,`createdAt`) VALUES
 (24,1,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','n7xsOOqxE4dQww9QKj30mO5W9GNp0w8T','wa_chatbot','condition','{\"nodes\":[{\"id\":\"initialNode\",\"position\":{\"x\":-114,\"y\":281},\"data\":{},\"type\":\"INITIAL\",\"width\":342,\"height\":313,\"selected\":false,\"positionAbsolute\":{\"x\":-114,\"y\":281},\"dragging\":false},{\"id\":\"1749548541604\",\"position\":{\"x\":373,\"y\":289},\"data\":{\"moveToNextNode\":false,\"type\":{\"type\":\"text\",\"title\":\"Simple text\"},\"content\":{\"type\":\"text\",\"text\":{\"preview_url\":true,\"body\":\"Hello! Welcome to codeyon it services. I can help you in the sales or support\"}}},\"type\":\"SEND_MESSAGE\",\"width\":318,\"height\":242,\"selected\":false,\"positionAbsolute\":{\"x\":373,\"y\":289},\"dragging\":false},{\"id\":\"1749548562798\",\"position\":{\"x\":803,\"y\":133.2847110518145},\"data\":{\"moveToNextNode\":true,\"conditions\":[{\"type\":\"text_contains\",\"value\":\"sales\",\"targetNodeId\":\"fvoxX8Lz7SR1a7xnVAH2ibWHprTJ0csU\",\"name\":\"Condition 1\",\"caseSensitive\":false},{\"type\":\"text_contains\",\"value\":\"support\",\"targetNodeId\":\"KwOZiUVMuz9U2NimYsTzfZeAiJcFS8Ob\",\"name\":\"Condition 2\"}],\"variable\":{\"message\":\"\",\"active\":false}},\"type\":\"CONDITION\",\"width\":350,\"height\":835,\"selected\":false,\"positionAbsolute\":{\"x\":803,\"y\":133.2847110518145},\"dragging\":false},{\"id\":\"1749548593825\",\"position\":{\"x\":1254,\"y\":343},\"data\":{\"moveToNextNode\":false,\"type\":{\"type\":\"text\",\"title\":\"Simple text\"},\"content\":{\"type\":\"text\",\"text\":{\"preview_url\":true,\"body\":\"Okay you are asking for the sales\"}}},\"type\":\"SEND_MESSAGE\",\"width\":318,\"height\":242,\"selected\":false,\"positionAbsolute\":{\"x\":1254,\"y\":343},\"dragging\":false},{\"id\":\"1749548614817\",\"position\":{\"x\":1221.7931717181345,\"y\":610.8330260529622},\"data\":{\"moveToNextNode\":false,\"type\":{\"type\":\"text\",\"title\":\"Simple text\"},\"content\":{\"type\":\"text\",\"text\":{\"preview_url\":true,\"body\":\"Okay you are asking for the support\"}}},\"type\":\"SEND_MESSAGE\",\"width\":318,\"height\":242,\"selected\":false,\"positionAbsolute\":{\"x\":1221.7931717181345,\"y\":610.8330260529622},\"dragging\":false},{\"id\":\"1749548624676\",\"position\":{\"x\":1240.4949672843284,\"y\":897.4647994417787},\"data\":{\"moveToNextNode\":true,\"type\":{\"type\":\"image\",\"title\":\"Image\"},\"content\":{\"type\":\"image\",\"image\":{\"link\":\"http://localhost:3000/media/ALtn0fQ1inDwKL13jK3CThtc3n2UxXY0.png\",\"caption\":\"Sorry i dont understand!\"}}},\"type\":\"SEND_MESSAGE\",\"width\":370,\"height\":379,\"selected\":true,\"positionAbsolute\":{\"x\":1240.4949672843284,\"y\":897.4647994417787},\"dragging\":false}],\"edges\":[{\"source\":\"initialNode\",\"sourceHandle\":\"9cNT4DIJqf8TICbpzbgOm91VC06WJqG1\",\"target\":\"1749548541604\",\"targetHandle\":\"1749548541604-target\",\"id\":\"reactflow__edge-initialNode9cNT4DIJqf8TICbpzbgOm91VC06WJqG1-17495485416041749548541604-target\",\"selected\":false},{\"source\":\"1749548541604\",\"sourceHandle\":\"1749548541604-source\",\"target\":\"1749548562798\",\"targetHandle\":null,\"id\":\"reactflow__edge-17495485416041749548541604-source-1749548562798\",\"selected\":false},{\"source\":\"1749548562798\",\"sourceHandle\":\"fvoxX8Lz7SR1a7xnVAH2ibWHprTJ0csU\",\"target\":\"1749548593825\",\"targetHandle\":\"1749548593825-target\",\"id\":\"reactflow__edge-1749548562798fvoxX8Lz7SR1a7xnVAH2ibWHprTJ0csU-17495485938251749548593825-target\",\"selected\":false},{\"source\":\"1749548562798\",\"sourceHandle\":\"KwOZiUVMuz9U2NimYsTzfZeAiJcFS8Ob\",\"target\":\"1749548614817\",\"targetHandle\":\"1749548614817-target\",\"id\":\"reactflow__edge-1749548562798KwOZiUVMuz9U2NimYsTzfZeAiJcFS8Ob-17495486148171749548614817-target\",\"selected\":false},{\"source\":\"1749548562798\",\"sourceHandle\":\"default\",\"target\":\"1749548624676\",\"targetHandle\":\"1749548624676-target\",\"id\":\"reactflow__edge-1749548562798default-17495486246761749548624676-target\",\"selected\":false},{\"source\":\"1749548624676\",\"sourceHandle\":\"1749548624676-source\",\"target\":\"1749548541604\",\"targetHandle\":\"1749548541604-target\",\"id\":\"reactflow__edge-17495486246761749548624676-source-17495485416041749548541604-target\",\"selected\":false},{\"source\":\"1749548593825\",\"sourceHandle\":\"1749548593825-source\",\"target\":\"1749548541604\",\"targetHandle\":\"1749548541604-target\",\"id\":\"reactflow__edge-17495485938251749548593825-source-17495485416041749548541604-target\",\"selected\":false},{\"source\":\"1749548614817\",\"sourceHandle\":\"1749548614817-source\",\"target\":\"1749548541604\",\"targetHandle\":\"1749548541604-target\",\"id\":\"reactflow__edge-17495486148171749548614817-source-17495485416041749548541604-target\",\"selected\":false}]}','2025-06-10 09:44:08'),
 (25,1,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','9CFyB7IAEW5kxFyTEIJ8A6hKuOSMf3ma','wa_chatbot','response saver','{\"nodes\":[{\"id\":\"initialNode\",\"position\":{\"x\":100,\"y\":300},\"data\":{},\"type\":\"INITIAL\"},{\"id\":\"1749548764652\",\"position\":{\"x\":420,\"y\":274},\"data\":{\"moveToNextNode\":false,\"type\":{\"type\":\"text\",\"title\":\"Simple text\"},\"content\":{\"type\":\"text\",\"text\":{\"preview_url\":true,\"body\":\"Hello there may i know you name please?\"}}},\"type\":\"SEND_MESSAGE\",\"width\":318,\"height\":242,\"selected\":false,\"positionAbsolute\":{\"x\":420,\"y\":274},\"dragging\":false},{\"id\":\"1749548779224\",\"position\":{\"x\":864,\"y\":118},\"data\":{\"moveToNextNode\":true,\"variables\":[{\"varName\":\"hitname\",\"responsePath\":\"message.msgContext.text.body\"}]},\"type\":\"RESPONSE_SAVER\",\"width\":368,\"height\":878,\"selected\":false,\"positionAbsolute\":{\"x\":864,\"y\":118},\"dragging\":false},{\"id\":\"1749548806761\",\"position\":{\"x\":1335,\"y\":258},\"data\":{\"moveToNextNode\":false,\"type\":{\"type\":\"text\",\"title\":\"Simple text\"},\"content\":{\"type\":\"text\",\"text\":{\"preview_url\":true,\"body\":\"Hello *{{{hitname}}}*,\\nMay i know your requirement?\"}}},\"type\":\"SEND_MESSAGE\",\"width\":318,\"height\":242,\"selected\":false,\"positionAbsolute\":{\"x\":1335,\"y\":258},\"dragging\":false},{\"id\":\"1749548849690\",\"position\":{\"x\":1747,\"y\":137},\"data\":{\"moveToNextNode\":true,\"variables\":[{\"varName\":\"hisreq\",\"responsePath\":\"message.msgContext.text.body\"}]},\"type\":\"RESPONSE_SAVER\",\"width\":368,\"height\":878,\"selected\":false,\"positionAbsolute\":{\"x\":1747,\"y\":137},\"dragging\":false},{\"id\":\"1749548865851\",\"position\":{\"x\":2171,\"y\":278},\"data\":{\"moveToNextNode\":false,\"type\":{\"type\":\"text\",\"title\":\"Simple text\"},\"content\":{\"type\":\"text\",\"text\":{\"preview_url\":true,\"body\":\"Thank you we have taken your message!\\n\\nYour name: {{{hitname}}}\\nYour req: {{{hisreq}}}\\n\\n\\nWe will get back you!\"}}},\"type\":\"SEND_MESSAGE\",\"width\":320,\"height\":244,\"selected\":true,\"positionAbsolute\":{\"x\":2171,\"y\":278},\"dragging\":false}],\"edges\":[{\"source\":\"initialNode\",\"sourceHandle\":\"R6GOhH2bqVrXsKHQaGGIs7xVQc2JM0Ox\",\"target\":\"1749548764652\",\"targetHandle\":\"1749548764652-target\",\"id\":\"reactflow__edge-initialNodeR6GOhH2bqVrXsKHQaGGIs7xVQc2JM0Ox-17495487646521749548764652-target\"},{\"source\":\"1749548764652\",\"sourceHandle\":\"1749548764652-source\",\"target\":\"1749548779224\",\"targetHandle\":\"1749548779224-target\",\"id\":\"reactflow__edge-17495487646521749548764652-source-17495487792241749548779224-target\"},{\"source\":\"1749548779224\",\"sourceHandle\":\"1749548779224-source\",\"target\":\"1749548806761\",\"targetHandle\":\"1749548806761-target\",\"id\":\"reactflow__edge-17495487792241749548779224-source-17495488067611749548806761-target\"},{\"source\":\"1749548806761\",\"sourceHandle\":\"1749548806761-source\",\"target\":\"1749548849690\",\"targetHandle\":\"1749548849690-target\",\"id\":\"reactflow__edge-17495488067611749548806761-source-17495488496901749548849690-target\"},{\"source\":\"1749548849690\",\"sourceHandle\":\"1749548849690-source\",\"target\":\"1749548865851\",\"targetHandle\":\"1749548865851-target\",\"id\":\"reactflow__edge-17495488496901749548849690-source-17495488658511749548865851-target\"}]}','2025-06-10 09:48:19'),
 (26,1,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','WGrC42Ndm3FcsTLxhXTxmiPc9U4rqiVz','wa_chatbot','make req','{\"nodes\":[{\"id\":\"initialNode\",\"position\":{\"x\":100,\"y\":300},\"data\":{},\"type\":\"INITIAL\",\"width\":268,\"height\":153},{\"id\":\"1749548943985\",\"position\":{\"x\":961,\"y\":162},\"data\":{\"moveToNextNode\":true,\"method\":\"GET\",\"url\":\"https://reqres.in/api/users/2\",\"headers\":[{\"key\":\"Content-Type\",\"value\":\"application/json\",\"id\":1749548929774}],\"variables\":[{\"key\":\"respemail\",\"value\":\"body.data.email\",\"id\":1749548967530},{\"key\":\"respfirstname\",\"value\":\"body.data.first_name\",\"id\":1749549032998}],\"body\":\"\",\"bodyData\":{\"json\":[],\"formData\":[],\"urlEncoded\":[],\"raw\":\"\"},\"contentType\":\"application/json\"},\"type\":\"MAKE_REQUEST\",\"width\":368,\"height\":762,\"selected\":false,\"positionAbsolute\":{\"x\":961,\"y\":162},\"dragging\":false},{\"id\":\"1749548982162\",\"position\":{\"x\":527,\"y\":305},\"data\":{\"moveToNextNode\":false,\"type\":{\"type\":\"text\",\"title\":\"Simple text\"},\"content\":{\"type\":\"text\",\"text\":{\"preview_url\":true,\"body\":\"Hello! welcome to codeyon it services. \\nPlease reply to fetch your details\"}}},\"type\":\"SEND_MESSAGE\",\"width\":318,\"height\":242,\"selected\":false,\"positionAbsolute\":{\"x\":527,\"y\":305},\"dragging\":false},{\"id\":\"1749549054522\",\"position\":{\"x\":1380,\"y\":346},\"data\":{\"moveToNextNode\":true,\"type\":{\"type\":\"text\",\"title\":\"Simple text\"},\"content\":{\"type\":\"text\",\"text\":{\"preview_url\":true,\"body\":\"Please hold on we are fetching your details!\"}}},\"type\":\"SEND_MESSAGE\",\"width\":318,\"height\":242,\"selected\":false,\"positionAbsolute\":{\"x\":1380,\"y\":346},\"dragging\":false},{\"id\":\"1749549070024\",\"position\":{\"x\":1769,\"y\":346},\"data\":{\"moveToNextNode\":false,\"type\":{\"type\":\"text\",\"title\":\"Simple text\"},\"content\":{\"type\":\"text\",\"text\":{\"preview_url\":true,\"body\":\"The fetched details are:\\n\\nFirst name: *{{{respfirstname}}}*\\nEmail: *{{{respemail}}}*\"}}},\"type\":\"SEND_MESSAGE\",\"width\":320,\"height\":244,\"selected\":true,\"positionAbsolute\":{\"x\":1769,\"y\":346},\"dragging\":false}],\"edges\":[{\"source\":\"initialNode\",\"sourceHandle\":\"leKsBdfjPK1RvsYNXH3fgcIxtoMI1NFe\",\"target\":\"1749548982162\",\"targetHandle\":\"1749548982162-target\",\"id\":\"reactflow__edge-initialNodeleKsBdfjPK1RvsYNXH3fgcIxtoMI1NFe-17495489821621749548982162-target\"},{\"source\":\"1749548982162\",\"sourceHandle\":\"1749548982162-source\",\"target\":\"1749548943985\",\"targetHandle\":\"1749548943985-target\",\"id\":\"reactflow__edge-17495489821621749548982162-source-17495489439851749548943985-target\"},{\"source\":\"1749548943985\",\"sourceHandle\":\"1749548943985-source\",\"target\":\"1749549054522\",\"targetHandle\":\"1749549054522-target\",\"id\":\"reactflow__edge-17495489439851749548943985-source-17495490545221749549054522-target\"},{\"source\":\"1749549054522\",\"sourceHandle\":\"1749549054522-source\",\"target\":\"1749549070024\",\"targetHandle\":\"1749549070024-target\",\"id\":\"reactflow__edge-17495490545221749549054522-source-17495490700241749549070024-target\"}]}','2025-06-10 09:51:40'),
@@ -694,6 +712,7 @@ DROP TABLE IF EXISTS `broadcast`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `broadcast` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `broadcast_id` varchar(999) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
   `title` varchar(999) DEFAULT NULL,
@@ -703,6 +722,7 @@ CREATE TABLE `broadcast` (
   `schedule` datetime DEFAULT NULL,
   `timezone` varchar(999) DEFAULT 'Asia/Kolkata',
   `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -725,6 +745,7 @@ DROP TABLE IF EXISTS `broadcast_log`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `broadcast_log` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
   `broadcast_id` varchar(999) DEFAULT NULL,
   `templet_name` varchar(999) DEFAULT NULL,
@@ -738,6 +759,7 @@ CREATE TABLE `broadcast_log` (
   `example` longtext DEFAULT NULL,
   `contact` longtext DEFAULT NULL,
   `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=26 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -760,12 +782,14 @@ DROP TABLE IF EXISTS `chat_tags`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `chat_tags` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
   `hex` varchar(999) DEFAULT NULL,
   `title` longtext DEFAULT NULL,
   `createdAt` timestamp NULL DEFAULT current_timestamp(),
   `show_on_kanban` tinyint(1) DEFAULT 1,
   PRIMARY KEY (`id`),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   KEY `idx_uid` (`uid`(150))
 ) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -776,7 +800,7 @@ CREATE TABLE `chat_tags` (
 
 LOCK TABLES `chat_tags` WRITE;
 /*!40000 ALTER TABLE `chat_tags` DISABLE KEYS */;
-INSERT INTO `chat_tags` VALUES
+INSERT INTO `chat_tags` (`id`,`uid`,`hex`,`title`,`createdAt`,`show_on_kanban`) VALUES
 (1,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','#d86a6a','Important','2025-02-04 08:09:27',1),
 (9,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','#72edde','Not Int','2025-02-04 08:19:07',1),
 (10,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','#6366F1','new tag','2025-06-07 05:15:50',1);
@@ -891,6 +915,7 @@ DROP TABLE IF EXISTS `contact`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `contact` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
   `phonebook_id` varchar(999) DEFAULT NULL,
   `phonebook_name` varchar(999) DEFAULT NULL,
@@ -905,6 +930,7 @@ CREATE TABLE `contact` (
   `var6` varchar(999) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_uid_mobile` (`uid`(120),`mobile`(80)),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   KEY `idx_uid` (`uid`(150))
 ) ENGINE=InnoDB AUTO_INCREMENT=58 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -915,7 +941,7 @@ CREATE TABLE `contact` (
 
 LOCK TABLES `contact` WRITE;
 /*!40000 ALTER TABLE `contact` DISABLE KEYS */;
-INSERT INTO `contact` VALUES
+INSERT INTO `contact` (`id`,`uid`,`phonebook_id`,`phonebook_name`,`name`,`mobile`,`var1`,`var2`,`var3`,`var4`,`var5`,`createdAt`,`var6`) VALUES
 (48,'OnjWZ9wHtdqTrAnZL32DgYbZjs3UZlis','39','code','codeyon','918430088300',NULL,NULL,NULL,NULL,NULL,'2025-09-09 09:26:18',NULL),
 (55,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','37','Codeyon','Codeyon','918430088300','one','two','three','four','five','2026-03-28 12:46:53',NULL),
 (57,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','37','Codeyon','codeyon insta','1270834648022483','','','','','','2026-04-29 13:59:42',NULL);
@@ -1245,6 +1271,7 @@ DROP TABLE IF EXISTS `instance`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `instance` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
   `title` varchar(999) DEFAULT NULL,
   `number` varchar(999) DEFAULT NULL,
@@ -1257,6 +1284,7 @@ CREATE TABLE `instance` (
   PRIMARY KEY (`id`),
   KEY `idx_uniqueid` (`uniqueId`(150)),
   KEY `idx_uid_status` (`uid`(120),`status`(50)),
+  KEY `idx_tenant` (`tenant_id`,`uniqueId`(120)),
   KEY `idx_uid` (`uid`(150))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -1402,6 +1430,7 @@ DROP TABLE IF EXISTS `orders`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `orders` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
   `payment_mode` varchar(999) DEFAULT NULL,
   `amount` varchar(999) DEFAULT NULL,
@@ -1409,6 +1438,7 @@ CREATE TABLE `orders` (
   `s_token` varchar(999) DEFAULT NULL,
   `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
   `status` varchar(50) DEFAULT 'PENDING',
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -1419,7 +1449,7 @@ CREATE TABLE `orders` (
 
 LOCK TABLES `orders` WRITE;
 /*!40000 ALTER TABLE `orders` DISABLE KEYS */;
-INSERT INTO `orders` VALUES
+INSERT INTO `orders` (`id`,`uid`,`payment_mode`,`amount`,`data`,`s_token`,`createdAt`,`status`) VALUES
 (16,'z5GlPkbI8cX9Wq9hHvvcVOGd4a9ACglX','OFFLINE','0','{\"plan\":{\"id\":17,\"title\":\"Trial\",\"short_description\":\"This is a trial plan with all the featrues\",\"allow_tag\":1,\"allow_note\":1,\"allow_chatbot\":1,\"contact_limit\":\"100\",\"allow_api\":1,\"is_trial\":1,\"price\":0,\"price_strike\":null,\"plan_duration_in_days\":\"10\",\"createdAt\":\"2025-04-19T13:50:55.000Z\",\"qr_account\":10,\"wa_warmer\":1,\"rest_api_qr\":1}}',NULL,'2025-12-01 09:16:55','PENDING'),
 (17,'JAmZQQs9tj7ftzdCD9AeHqXK19fzvNFh','OFFLINE','0','{\"plan\":{\"id\":17,\"title\":\"Trial\",\"short_description\":\"This is a trial plan with all the featrues\",\"allow_tag\":1,\"allow_note\":1,\"allow_chatbot\":1,\"contact_limit\":\"100\",\"allow_api\":1,\"is_trial\":1,\"price\":0,\"price_strike\":null,\"plan_duration_in_days\":\"10\",\"createdAt\":\"2025-04-19T13:50:55.000Z\",\"qr_account\":10,\"wa_warmer\":1,\"rest_api_qr\":1}}',NULL,'2025-12-14 20:26:14','PENDING'),
 (18,'rALfgowoaZcGMFs6NlSDTWkepMrIqHWO','OFFLINE','0','{\"plan\":{\"id\":17,\"title\":\"Trial\",\"short_description\":\"This is a trial plan with all the featrues\",\"allow_tag\":1,\"allow_note\":1,\"allow_chatbot\":1,\"contact_limit\":\"100\",\"allow_api\":1,\"is_trial\":1,\"price\":0,\"price_strike\":null,\"plan_duration_in_days\":\"10\",\"createdAt\":\"2025-04-19T13:50:55.000Z\",\"qr_account\":10,\"wa_warmer\":1,\"rest_api_qr\":1}}',NULL,'2026-01-10 09:37:55','PENDING'),
@@ -1499,10 +1529,12 @@ DROP TABLE IF EXISTS `phonebook`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `phonebook` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `name` varchar(999) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
   `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   KEY `idx_uid` (`uid`(150))
 ) ENGINE=InnoDB AUTO_INCREMENT=41 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -1513,7 +1545,7 @@ CREATE TABLE `phonebook` (
 
 LOCK TABLES `phonebook` WRITE;
 /*!40000 ALTER TABLE `phonebook` DISABLE KEYS */;
-INSERT INTO `phonebook` VALUES
+INSERT INTO `phonebook` (`id`,`name`,`uid`,`createdAt`) VALUES
 (34,'a big name of phonebook','3mHW89bMykCd8pVYRHqnUb0kSqgUcoow','2025-06-09 10:36:54'),
 (35,'a big name of phonebook is here which is more big','3mHW89bMykCd8pVYRHqnUb0kSqgUcoow','2025-06-09 10:37:07'),
 (36,'a book','3mHW89bMykCd8pVYRHqnUb0kSqgUcoow','2025-06-09 10:41:17'),
@@ -1611,6 +1643,7 @@ DROP TABLE IF EXISTS `qr_campaigns`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `qr_campaigns` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
   `title` varchar(999) DEFAULT NULL,
   `instance_id` varchar(999) DEFAULT NULL,
@@ -1632,6 +1665,7 @@ CREATE TABLE `qr_campaigns` (
   `other` longtext DEFAULT NULL,
   `createdAt` timestamp NULL DEFAULT current_timestamp(),
   `updatedAt` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -1654,10 +1688,12 @@ DROP TABLE IF EXISTS `quick_reply`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `quick_reply` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
   `msg` longtext DEFAULT NULL,
   `createdAt` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   KEY `idx_uid` (`uid`(150))
 ) ENGINE=InnoDB AUTO_INCREMENT=31 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -1668,7 +1704,7 @@ CREATE TABLE `quick_reply` (
 
 LOCK TABLES `quick_reply` WRITE;
 /*!40000 ALTER TABLE `quick_reply` DISABLE KEYS */;
-INSERT INTO `quick_reply` VALUES
+INSERT INTO `quick_reply` (`id`,`uid`,`msg`,`createdAt`) VALUES
 (1,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','this is a quick reply message','2025-09-17 08:19:51'),
 (2,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','This is new message','2025-09-17 08:23:46'),
 (8,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','quick reply message quick reply message','2025-10-04 08:07:49'),
@@ -1787,11 +1823,13 @@ DROP TABLE IF EXISTS `templets`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `templets` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `uid` varchar(999) DEFAULT NULL,
   `content` longtext DEFAULT NULL,
   `type` varchar(999) DEFAULT NULL,
   `title` varchar(999) DEFAULT NULL,
   `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -1802,7 +1840,7 @@ CREATE TABLE `templets` (
 
 LOCK TABLES `templets` WRITE;
 /*!40000 ALTER TABLE `templets` DISABLE KEYS */;
-INSERT INTO `templets` VALUES
+INSERT INTO `templets` (`id`,`uid`,`content`,`type`,`title`,`createdAt`) VALUES
 (9,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','{\"type\":\"text\",\"text\":{\"preview_url\":true,\"body\":\"{{OTHER_MSG}}\"}}','TEXT','kj','2024-07-05 06:35:08');
 /*!40000 ALTER TABLE `templets` ENABLE KEYS */;
 UNLOCK TABLES;
@@ -2336,6 +2374,7 @@ DROP TABLE IF EXISTS `webhook_logs`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `webhook_logs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tenant_id` int(11) DEFAULT NULL,
   `uid` varchar(255) NOT NULL,
   `webhook_id` varchar(36) NOT NULL,
   `method` enum('GET','POST','PUT','DELETE') NOT NULL DEFAULT 'POST',
@@ -2344,6 +2383,7 @@ CREATE TABLE `webhook_logs` (
   `status` enum('RECEIVED','FAILED') NOT NULL DEFAULT 'RECEIVED',
   `error` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  KEY `idx_tenant` (`tenant_id`,`uid`(120)),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=138 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -2354,7 +2394,7 @@ CREATE TABLE `webhook_logs` (
 
 LOCK TABLES `webhook_logs` WRITE;
 /*!40000 ALTER TABLE `webhook_logs` DISABLE KEYS */;
-INSERT INTO `webhook_logs` VALUES
+INSERT INTO `webhook_logs` (`id`,`uid`,`webhook_id`,`method`,`event_type`,`payload`,`status`,`error`,`created_at`) VALUES
 (14,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','UEgGT2','GET','unknown','{\"number\":\"918430088300\"}','RECEIVED',NULL,'2025-06-27 12:32:57'),
 (15,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','UEgGT2','GET','unknown','{\"number\":\"918430088300\"}','RECEIVED',NULL,'2025-06-27 12:33:15'),
 (16,'lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8','UEgGT2','GET','unknown','{\"number\":\"918430088300\"}','RECEIVED',NULL,'2025-06-27 12:33:43'),

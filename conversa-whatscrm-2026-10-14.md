@@ -1,0 +1,341 @@
+# Conversa — WhatsCRM
+**Data:** 14/10/2026 · **Projeto:** `/home/ailton/Projetos/WhatsCRM` · **Modelo:** opencode/mimo-v2.6-flash-free
+
+---
+
+## 1. Solicitação inicial
+
+**Usuário:** acesse e traga a última sessão completamente
+
+**Ação:** o repositório foi analisado. A "sessão" encontrada no filesystem foi:
+
+`server/automation/usevelix_sessions.json`
+```json
+{
+  "919690309316": "b8a55078-ab1d-43f3-b5fb-af2c248bb6f1",
+  "918430088300": "027655c6-a325-4204-b3e0-e098f27a3558"
+}
+```
+
+Explicação técnica: as sessões WhatsApp são persistidas em MongoDB (`whatsapp_sessions` → coleção `sessions`), estrutura definida em `server/helper/addon/qr/mongoSession.js` (sessionId + dataKey, TTL de 30 dias).
+
+---
+
+## 2. Esclarecimento da pergunta
+
+**Usuário:** me referi a sessão de hoje sobre o whatscrm
+
+**Resposta — última sessão (commit do dia):**
+
+| Campo | Valor |
+|---|---|
+| Commit | `34c5fd6` |
+| Mensagem | `whatscrm initial: server + database schema` |
+| Autor | Gstd \<gstd.digital@gmail.com\> |
+| Data | Tue Oct 13 15:09:43 2026 -0300 |
+| Alcance | 206 arquivos, +83.753 linhas |
+
+Conteúdo: backend Node.js completo (app.js, server.js, 25 rotas, addons QR/Telegram/Instagram/WACall), frontend React compilado, schema SQL (15+ tabelas) e o script original `whatscrm_nodejs_script_v6.1.0`.
+
+---
+
+## 3. Push para o GitHub (erros de autenticação)
+
+**Usuário:** comandos `git remote add`, `git branch -M main`, `git push` falhando:
+```
+error: remote origin already exists.
+remote: Invalid username or token. Password authentication is not supported for Git operations.
+fatal: Authentication failed
+```
+
+**Diagnóstico:** GitHub bloqueia senha desde 2021 — exige PAT ou SSH.
+
+**Usuário:** 1 PAT, já consegui acessar. como configurar
+
+**Ação:** explicado uso de PAT na URL remota.
+
+**Usuário:** esse PAT é private key
+
+**Resposta:** PAT ≠ private key. PAT = HTTPS; chave privada = SSH (`git@github.com:...`).
+
+**Usuário:** mostrou tela do GitHub App `dokploy-whatscrm` (App ID 5308593, owner gstd-ag)
+
+**Usuário:** colou o token `ghp_...` na conversa
+
+**Ação:** configuração da URL com token; observação de que o token foi exposto e deve ser revogado.
+
+**Usuário:** executou comandos com erro de sintaxe (`$ghp_...` em vez de `${GH_ACCESS_TOKEN}`), push falhou
+
+**Diagnóstico:** 
+- a URL remota ficou sem credencial (`x-access-token:@github.com`)
+- token validado via API (`/user` → 200, login `gstd-ag`, scopes `repo`, expira em 2026-11-13)
+- correção da URL com `${GH_ACCESS_TOKEN}`
+
+**Novo erro no push — Push Protection (secret scanning):**
+```
+GH013: Repository rule violations found for refs/heads/main
+- Google Cloud Service Account Credentials
+    server/client/public/media/UEgYp...json:1
+    server/client/public/media/iMtNtq...json:1
+    database/import.sql:1392
+- OpenAI API Key
+    database/import.sql:659
+```
+
+---
+
+## 4. Limpeza dos segredos (Opção A)
+
+**Usuário:** não tem como colocar no gitignore?
+**Resposta:** não — `.gitignore` não limpa o histórico de commits já feitos.
+
+**Usuário:** opção A. e a pasta no github vai ficar invisivel
+**Resposta:** sim — os 4 arquivos `.json` saem do repositório mas permanecem no disco local; a pasta não aparece no GitHub.
+
+**Execução:**
+1. Removidos do índice os 4 arquivos de credenciais Google (2 no `server/`, 2 na cópia `whatscrm_nodejs_script_v6.1.0/`), mantidos no disco e adicionados ao `.gitignore`
+2. `database/import.sql:659` — OpenAI key `sk-proj-u4_...` → `REPLACE_WITH_YOUR_OPENAI_KEY`
+3. `database/import.sql:1392` — Firebase Service Account inteiro → placeholder
+4. Histórico reescrito: **commit raiz único** (o commit `98be4c6` com segredos saiu do histórico)
+5. Verificação final: zero `sk-proj-`, zero PEM no histórico
+
+**Push aceito:**
+```
+https://github.com/gstd-ag/whatscrm
+main → 5a97701 "whatscrm initial: server + database schema (secrets removed)"
+```
+
+**Alertas de segurança emitidos:**
+- Revogar o PAT `ghp_...` (exposto no chat)
+- Rotacionar OpenAI key, as 2 Google SA keys e a Firebase key (expostas no histórico/chat)
+
+---
+
+## 5. Domínio
+
+**Usuário:** qual domínio sugere? `crm.gstd.com.br` está ocupado
+
+**Resposta — sugestões:**
+
+| Domínio | Quando usar |
+|---|---|
+| **`whatscrm.gstd.com.br`** ⭐ | Nome do produto |
+| **`app.whatscrm.gstd.com.br`** | Estilo SaaS |
+| `wa.gstd.com.br` | Curto |
+| `painel.gstd.com.br` | Só painel interno |
+
+**Usuário:** `http://app.gstd.com.br/`
+
+**Ação:** `server/.env` preenchido:
+```
+FRONTENDURI=https://app.gstd.com.br
+BACKURI=https://app.gstd.com.br
+DOMAIN=https://app.gstd.com.br
+JWTKEY=<novo aleatório (openssl rand -hex 48)>
+```
+Observações: `.env` é gitignorado; JWT do `.env.example` é público e não deve ser usado; DNS `A app → IP`; CORS usa `FRONTENDURI`/`BACKURI` (`server/server.js:114`).
+
+---
+
+## 6. Idioma padrão pt-BR
+
+**Usuário:** o idioma padrão é pt-br
+
+**Mecanismo:** `server/languages/default.json` → `{"code":"English"}`, lido por `GET /api/web/get-default-language` (`server/routes/web.js:815`), salvo em `localStorage.language`, carrega `languages/{code}.json`.
+
+**Ação:** alterado para `{"code":"Portuguese"}` e commitado:
+```
+4185fe3 definir idioma padrao do servidor para Portuguese (pt-BR)
+```
+
+---
+
+## 7. Revisão do Portuguese.json + Deploy Dokploy
+
+**Usuário:** sim (revisar tradução) e já prepare o passo a passo do deploy no Dokploy
+
+### Revisão do idioma
+- **2.420 chaves** em ambos — **0 faltando, 0 sobrando**
+- 477 valores idênticos ao inglês — na maioria termos técnicos (`Google Sheets`, `MySQL`, `FAQ`, `Card`), mas há textos reais em inglês traduzíveis (ex.: `carouselGuide`, `catalogDesc`)
+- Conteúdo pt-BR correto ("Bem-vindo de volta", "Faça login para continuar sua jornada com IA")
+
+### Análise do app para deploy
+- App único: `server/server.js`, porta default **3010**, serve React de `./client/public`
+- MySQL via env (`DBHOST/DBUSER/DBPASS/DBNAME/DBPORT`), Mongo via `web_private.mongodb_string` (fallback `mongodb://localhost:27017`, db `MONGO_DB_NAME`)
+- Deps nativas: `sharp`, `bcrypt`, `@roamhq/wrtc`, `ffmpeg-static`, `baileys`
+- Config QR: admin → `/api/admin/update_qr_set` (local | mysql | mongodb)
+
+### Arquivos criados
+1. **`server/Dockerfile`** — `node:20-bookworm-slim` + toolchain + libs wrtc/sharp, `npm ci`, user `node`, porta 3010, TZ `America/Sao_Paulo`
+2. **`server/.dockerignore`** — node_modules, `.env`, sessions, logs
+3. **`docker-compose.yml`** (raiz) — serviços `app` (build ./server), `mariadb:10.11` (import automático de `database/import.sql` via docker-entrypoint-initdb.d), `mongo:7`; volumes `db_data`, `mongo_data`, `app_media`, `app_languages`; healthcheck no MariaDB
+
+### Bug encontrado e corrigido
+O dump parava na linha 44:
+```
+ERROR 1136 (21S01): Column count doesn't match value count at row 1
+```
+`INSERT INTO admin` tinha **8 valores** para **7 colunas** (valor duplicado `XhbfYk...`). Corrigido com column list explícita e remoção do valor duplicado.
+
+### Validação local completa
+```
+docker compose build app     ✅ (npm ci + deps nativas)
+docker compose up -d          ✅ (3 containers, db healthy)
+import do dump                ✅ 62/62 tabelas, zero erros
+GET /                         ✅ 200
+GET /api/web/get-default-language → {"success":true,"default":"Portuguese"}
+POST /api/admin/login (admin@admin.com/admin123) → {"success":true,"token":"..."}
+logs                         ✅ 0 erros
+```
+
+### Commit enviado
+```
+a162309 deploy: Dockerfile + docker-compose (app/mariadb/mongo) e correcao do INSERT admin no dump
+```
+
+---
+
+## 8. Exportação da conversa (1ª vez)
+
+**Usuário:** exporte a conversa
+
+**Ação:** criado `conversa-whatscrm-2026-10-14.md` na raiz do projeto (fora do git).
+
+---
+
+## 9. Deploy no Dokploy — tentativa 1 (falhou: env vars)
+
+**Usuário:** colou o log do Dokploy (projeto `crm-whatscrm-gyddwn`):
+```
+error while interpolating services.app.environment.DBPASS: required variable DB_PASS is missing a value
+error while interpolating services.app.environment.JWTKEY: required variable JWTKEY is missing a value
+error while interpolating services.mariadb.environment.MARIADB_PASSWORD: required variable DB_PASS is missing a value
+error while interpolating services.mariadb.environment.MARIADB_ROOT_PASSWORD: required variable DB_ROOT_PASS is missing a value
+```
+
+**Diagnóstico:** o Dokploy usa `--env-file .env` e o arquivo estava vazio — faltavam as 3 variáveis obrigatórias do compose (`${DB_PASS:?}`, `${DB_ROOT_PASS:?}`, `${JWTKEY:?}`).
+
+**Ação:** confirmadas as chaves no `docker-compose.yml` e gerados valores prontos:
+
+| Chave | Valor |
+|---|---|
+| `DB_PASS` | `coqMaEeetBdHGZCKw5q2uJoX` |
+| `DB_ROOT_PASS` | `5wkd1HzqisjgJB61P3AKwmRD` |
+| `JWTKEY` | `221be54c...83fc83c` (openssl rand -hex 48) |
+
+Instrução: colar na aba **Environment** do serviço Compose no Dokploy → Save → Deploy.
+
+---
+
+## 10. Senha não entra (1º deploy com env vars OK)
+
+**Usuário:** acessou a página, porém a senha fornecida não entra
+
+**Diagnóstico:** o hash `admin123` ($2b$10$GU7t8lVF...) foi aplicado **só no banco de teste local**, nunca commitado. O dump implantado (`import.sql:45`) tinha o hash original do demo (`$2b$10$puhzPzFD...`), de senha desconhecida. A rota usa `bcrypt.compare` (`admin.js:41`).
+
+**Solução dada:** SQL de reset no banco de produção (UPDATE do hash `admin123`) + oferecimento para atualizar o dump.
+
+---
+
+## 11. Correção no git e push
+
+**Usuário:** ajuste os arquivos para o git e suba novamente que faço o redeploy
+
+**Ação:**
+1. `database/import.sql:45` — hash trocado para `$2b$10$GU7t8lVF6NZSK0607nC4CO2NIMhW8sFgNAF7riVMRlsYP/XsGot2G`
+2. Verificado com `bcrypt.compare('admin123') = true` no container da app
+3. Commit + push:
+```
+662c5ae dump: senha do admin definida como admin123 (bcrypt)
+```
+
+---
+
+## 12. Redeploy (projeto `crm-whatscrm-gyddwn`) — import NÃO re-executou
+
+**Usuário:** colou o log do redeploy.
+
+**Análise:**
+- Build CACHED, 3 containers up, MariaDB healthy — deploy OK
+- **Mas** o init do dump já tinha rodado no deploy anterior (04:25) — o volume existia; no redeploy (04:39) o MariaDB só fez crash recovery, **sem rodar o init** → banco ficou com o hash antigo
+- Erros `EAI_AGAIN mariadb` nos primeiros segundos = DNS do Docker transitório no start do app (conectou depois)
+
+**Solução dada:**
+```bash
+# conferir qual hash está no banco
+docker exec whatscrm-db mariadb -uroot -p'<DB_ROOT_PASS>' -N \
+  -e "SELECT password FROM whatscrm.admin WHERE email='admin@admin.com';"
+
+# se for o antigo, resetar
+docker exec -i whatscrm-db mariadb -uroot -p'<DB_ROOT_PASS>' whatscrm <<'SQL'
+UPDATE admin SET password='$2b$10$GU7t8lVF6NZSK0607nC4CO2NIMhW8sFgNAF7riVMRlsYP/XsGot2G'
+WHERE email='admin@admin.com';
+SQL
+```
+Alternativa: apagar o volume `db_data` e redeployar (init roda de novo com o dump novo).
+
+---
+
+## 13. Reinstalação limpa (projeto `crm-whatscrm-kuemle`)
+
+**Usuário:** não deu certo, apaguei e fiz uma reinstalação limpa e ainda deu erro — colou o log completo.
+
+**Análise do log (tudo verde):**
+- Volumes novos criados (`crm-whatscrm-kuemle_db_data` etc.)
+- Init do MariaDB rodou: `running /docker-entrypoint-initdb.d/01-schema.sql` (05:06:00→05:06:02), sem erro, sem EAI_AGAIN
+- App: `Database has been connected` + license file criado com domínio
+- Domínio configurado: `app.gstd.com.br / / 3010 / letsencrypt`
+- 3 containers healthy
+
+**Verificações locais:**
+- GitHub `main` = `662c5ae` com hash novo (`GU7t8lVF...`) — clone pega o HEAD correto
+- Teste do endpoint usado pela UI: `POST /api/admin/login` `admin@admin.com`/`admin123` → `{"success":true,"token":...}`
+
+**Conclusão:** o log não contém erro — precisava saber QUAL erro.
+
+---
+
+## 14. Investigação da tela de login (mensagem `Invalid credentials`)
+
+**Usuário:** Invalid credencials
+
+**Investigação no bundle React (`main.d12aca39.js`):**
+
+| Rota da UI | Endpoint | Tabela | Resposta |
+|---|---|---|---|
+| `/admin/login` | `/api/admin/login` | `admin` | `Invalid credentials found` (e-mail não existe) / `Invalid credentials` (senha errada) |
+| `/user/login` | `/api/user/login` | `user` | `Invalid credentials` (sempre) |
+| `/agent/login` | `/api/agent/login` | agentes | — |
+| `/` (landing) | — | — | componente `pf` (home) |
+
+Tabela `user` do dump tem demo `user@user.com` (hash desconhecido), **não** `admin@admin.com`.
+
+**Hipótese principal:** usuário entrou na tela **de usuário** (`/user/login`) com `admin@admin.com` → e-mail não existe na tabela `user` → `Invalid credentials`.
+
+**Instrução dada:**
+1. Abrir `https://app.gstd.com.br/admin/login` e entrar com `admin@admin.com` / `admin123`
+2. Se falhar, rodar 3 comandos diagnosticáveis no servidor (hash no banco, API admin, API user) e mandar a saída
+
+---
+
+## Estado final (neste ponto)
+
+| Item | Status |
+|---|---|
+| Repositório GitHub | `gstd-ag/whatscrm` @ `main` (`662c5ae`) |
+| Segredos no repositório | ✅ removidos (histórico reescrito) |
+| Idioma padrão | ✅ pt-BR (Portuguese) |
+| Build Docker + compose | ✅ validados e no repo |
+| Deploy Dokploy | ✅ subindo limpo (`crm-whatscrm-kuemle`), domínio + LE configurado |
+| Login admin | ⏳ aguardando teste em `/admin/login` ou saída dos comandos diagnósticos |
+| Stack local de teste | rodando na porta 3010 (parar com `docker compose down`) |
+| Pendências do usuário | ⚠️ revogar PAT; ⚠️ rotacionar OpenAI/Google/Firebase keys |
+
+## Pendências / próximos possíveis
+1. **Confirmar login** em `https://app.gstd.com.br/admin/login` (ou obter saída dos 3 comandos diagnósticos)
+2. Trocar a senha `admin123` após o primeiro login
+3. Config QR/Storage: `mongodb` + `mongodb://mongo:27017` e conectar WhatsApp
+4. Revogar PAT exposto e rotacionar as credenciais expostas
+5. Traduzir os ~477 textos restantes do `Portuguese.json` que ainda estão em inglês
+6. Salvar o guia de deploy como `DEPLOY.md`
+7. Considerar remover `whatscrm_nodejs_script_v6.1.0/` (pasta + zip ~14MB) do repositório

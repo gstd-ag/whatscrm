@@ -379,11 +379,36 @@ router.post("/login", async (req, res) => {
     if (!compare) {
       return res.json({ msg: "Invalid credentials" });
     } else {
+      // Multi-tenant: anexa tenant ao JWT quando o usuario pertence a um
+      // (tolerante: se a migracao nao foi aplicada, mantem login legado)
+      let tenantInfo = {};
+      let userTenants = [];
+      try {
+        userTenants = await query(
+          `SELECT t.id as tenant_id, t.slug as tenant_slug, t.name as tenant_name
+             FROM tenant_users tu
+             JOIN tenants t ON t.id = tu.tenant_id
+            WHERE tu.user_uid = ? AND tu.is_active = 1`,
+          [userFind[0].uid],
+        );
+      } catch (e) {
+        // tabelas multi-tenant ausentes -> segue sem tenant
+        userTenants = [];
+      }
+
+      if (userTenants.length === 1) {
+        tenantInfo = {
+          tenant_id: userTenants[0].tenant_id,
+          tenant_slug: userTenants[0].tenant_slug,
+        };
+      }
+
       const token = sign(
         {
           uid: userFind[0].uid,
           role: "user",
           tokenVersion: userFind[0].tokenVersion || 0,
+          ...tenantInfo,
         },
         process.env.JWTKEY,
         {
@@ -393,6 +418,14 @@ router.post("/login", async (req, res) => {
       res.json({
         success: true,
         token,
+        // Se o usuario tem varios tenants, o frontend exibe o seletor
+        tenants:
+          userTenants.length > 1
+            ? userTenants.map((t) => ({
+                slug: t.tenant_slug,
+                name: t.tenant_name,
+              }))
+            : undefined,
       });
     }
   } catch (err) {
