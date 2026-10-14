@@ -1,0 +1,19 @@
+# Env com credenciais
+.env
+.env.*
+*.log
+
+# Dependências
+node_modules/
+
+# Arquivos do sistema
+.DS_Store
+
+# Backup e pacotes desnecessários
+*.zip
+*.tar.gz
+# service account credentials - nunca commitar
+server/client/public/media/UEgYpLWqNwlUQKNTFZ2OEiPM5fjwqnEU.json
+server/client/public/media/iMtNtqHFgisM4HOMKHFuDhNFNmUizTIy.json
+whatscrm_nodejs_script_v6.1.0/extract_to _server/client/public/media/UEgYpLWqNwlUQKNTFZ2OEiPM5fjwqnEU.json
+whatscrm_nodejs_script_v6.1.0/extract_to _server/client/public/media/iMtNtqHFgisM4HOMKHFuDhNFNmUizTIy.json
