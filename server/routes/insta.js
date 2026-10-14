@@ -17,6 +17,7 @@ const { processMessage } = require("../helper/inbox/inbox.js");
 const { processAutomation } = require("../automation/automation.js");
 const { checkPlan, checkInstaInbox } = require("../middlewares/plan.js");
 const logger = require("../utils/logger.js");
+const { tenantFilter, tenantInsert } = require("../utils/tenantScope.js");
 const crypto = require("crypto");
 
 const pageStyle = `
@@ -317,10 +318,13 @@ router.post("/webhook/:uid", async (req, res) => {
         const senderMobile = `${commenterId}`;
 
         // ── Find or create chat ──────────────────────────────────────────
+        // isolamento multi-tenant
+        const tInsta = tenantFilter(req);
+        const insChat = tenantInsert(req);
         const [existingChat] = await query(
           `SELECT * FROM beta_chats 
-           WHERE uid = ? AND sender_mobile = ? AND origin = ? LIMIT 1`,
-          [uid, senderMobile, "instagram_comment"],
+           WHERE uid = ? AND sender_mobile = ? AND origin = ?${tInsta.sql} LIMIT 1`,
+          [uid, senderMobile, "instagram_comment", ...tInsta.params],
         );
 
         let chatId;
@@ -331,8 +335,8 @@ router.post("/webhook/:uid", async (req, res) => {
           await query(
             `INSERT INTO beta_chats 
               (uid, chat_id, sender_mobile, sender_name, origin,
-               origin_instance_id, last_message, createdAt)
-             VALUES (?,?,?,?,?,?,?,?)`,
+               origin_instance_id, last_message, createdAt${insChat.cols})
+             VALUES (?,?,?,?,?,?,?,?${insChat.vals})`,
             [
               uid,
               chatId,
@@ -347,6 +351,7 @@ router.post("/webhook/:uid", async (req, res) => {
               }),
               JSON.stringify({ type: "text", text: { body: commentText } }),
               new Date(),
+              ...insChat.params,
             ],
           );
         }
@@ -380,8 +385,8 @@ router.post("/webhook/:uid", async (req, res) => {
         // ── Update last_message on chat ──────────────────────────────────
         await query(
           `UPDATE beta_chats SET last_message = ?, sender_name = ? 
-           WHERE chat_id = ? AND uid = ?`,
-          [JSON.stringify(messageData), commenterName, chatId, uid],
+           WHERE chat_id = ? AND uid = ?${tInsta.sql}`,
+          [JSON.stringify(messageData), commenterName, chatId, uid, ...tInsta.params],
         );
 
         // ── Build message object for automation ──────────────────────────

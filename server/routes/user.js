@@ -28,6 +28,11 @@ const {
 } = require("../functions/function.js");
 const { sign } = require("jsonwebtoken");
 const validateUser = require("../middlewares/user.js");
+const {
+  tenantFilter,
+  tenantInsert,
+  getTenantId,
+} = require("../utils/tenantScope.js");
 const Stripe = require("stripe");
 const {
   checkPlan,
@@ -700,10 +705,11 @@ router.post("/convert_audio", validateUser, async (req, res) => {
       });
     }
 
-    // Update database with new URL
+    // Update database with new URL (isolamento multi-tenant)
+    const tAudio = tenantFilter(req);
     const [getMsg] = await query(
-      `SELECT * FROM beta_conversation WHERE id = ?`,
-      [msgId],
+      `SELECT * FROM beta_conversation WHERE id = ?${tAudio.sql}`,
+      [msgId, ...tAudio.params],
     );
 
     if (getMsg) {
@@ -719,10 +725,10 @@ router.post("/convert_audio", validateUser, async (req, res) => {
         },
       };
 
-      await query(`UPDATE beta_conversation SET msgContext = ? WHERE id = ?`, [
-        JSON.stringify(updatedMsgCon),
-        msgId,
-      ]);
+      await query(
+        `UPDATE beta_conversation SET msgContext = ? WHERE id = ?${tAudio.sql}`,
+        [JSON.stringify(updatedMsgCon), msgId, ...tAudio.params],
+      );
 
       logger.log("Database updated with new MP3 URL");
     }
@@ -766,9 +772,11 @@ router.get("/get_me", validateUser, async (req, res) => {
     let contact = [];
 
     if (!userOnly) {
-      // getting phonebook
-      contact = await query(`SELECT * FROM contact WHERE uid = ?`, [
+      // getting phonebook (isolamento multi-tenant)
+      const tMe = tenantFilter(req);
+      contact = await query(`SELECT * FROM contact WHERE uid = ?${tMe.sql}`, [
         req.decode.uid,
+        ...tMe.params,
       ]);
     }
 
@@ -793,9 +801,11 @@ router.post(
     try {
       const { chatId, note } = req.body;
 
+      // isolamento multi-tenant
+      const tNote = tenantFilter(req);
       await query(
-        `UPDATE chats SET chat_note = ? WHERE chat_id = ? AND uid = ?`,
-        [note, chatId, req.decode.uid],
+        `UPDATE chats SET chat_note = ? WHERE chat_id = ? AND uid = ?${tNote.sql}`,
+        [note, chatId, req.decode.uid, ...tNote.params],
       );
       res.json({ success: true, msg: "Notes were updated" });
     } catch (err) {
@@ -819,9 +829,11 @@ router.post(
         return res.json({ success: false, msg: "Please type a tag" });
       }
 
+      // isolamento multi-tenant
+      const tPush = tenantFilter(req);
       const getChat = await query(
-        `SELECT * FROM chats WHERE chat_id = ? AND uid = ?`,
-        [chatId, req.decode.uid],
+        `SELECT * FROM chats WHERE chat_id = ? AND uid = ?${tPush.sql}`,
+        [chatId, req.decode.uid, ...tPush.params],
       );
 
       if (getChat.length < 1) {
@@ -833,8 +845,8 @@ router.post(
       const addNew = [...getTags, tag];
 
       await query(
-        `UPDATE chats SET chat_tags = ? WHERE chat_id = ? AND uid = ?`,
-        [JSON.stringify(addNew), chatId, req.decode.uid],
+        `UPDATE chats SET chat_tags = ? WHERE chat_id = ? AND uid = ?${tPush.sql}`,
+        [JSON.stringify(addNew), chatId, req.decode.uid, ...tPush.params],
       );
 
       res.json({ success: true, msg: "Tag was added" });
@@ -850,9 +862,11 @@ router.post("/del_tag", validateUser, async (req, res) => {
   try {
     const { tag, chatId } = req.body;
 
+    // isolamento multi-tenant
+    const tDelTag = tenantFilter(req);
     const getAll = await query(
-      `SELECT * FROM chats WHERE chat_id = ? AND uid = ?`,
-      [chatId, req.decode.uid],
+      `SELECT * FROM chats WHERE chat_id = ? AND uid = ?${tDelTag.sql}`,
+      [chatId, req.decode.uid, ...tDelTag.params],
     );
     if (getAll.length < 1) {
       return res.json({ success: false, msg: "Chat not found" });
@@ -867,8 +881,8 @@ router.post("/del_tag", validateUser, async (req, res) => {
     logger.log({ newOne });
 
     await query(
-      `UPDATE chats SET chat_tags = ? WHERE chat_id = ? AND uid = ?`,
-      [JSON.stringify(newOne), chatId, req.decode.uid],
+      `UPDATE chats SET chat_tags = ? WHERE chat_id = ? AND uid = ?${tDelTag.sql}`,
+      [JSON.stringify(newOne), chatId, req.decode.uid, ...tDelTag.params],
     );
 
     res.json({ success: true, msg: "Tag was deleted" });
@@ -883,13 +897,15 @@ router.post("/check_contact", validateUser, async (req, res) => {
   try {
     const { mobile } = req.body;
 
+    // isolamento multi-tenant
+    const tCheck = tenantFilter(req);
     const findFirst = await query(
-      `SELECT * FROM contact WHERE mobile = ? AND uid = ? `,
-      [mobile, req.decode.uid],
+      `SELECT * FROM contact WHERE mobile = ? AND uid = ?${tCheck.sql}`,
+      [mobile, req.decode.uid, ...tCheck.params],
     );
     const getAllPhonebook = await query(
-      `SELECT * FROM phonebook WHERE uid = ?`,
-      [req.decode.uid],
+      `SELECT * FROM phonebook WHERE uid = ?${tCheck.sql}`,
+      [req.decode.uid, ...tCheck.params],
     );
 
     if (findFirst.length < 1) {
@@ -935,16 +951,19 @@ router.post(
         return res.json({ success: false, msg: "incomplete input provided" });
       }
 
+      // isolamento multi-tenant
+      const tSave = tenantFilter(req);
       const findExist = await query(
-        `SELECT * FROM contact WHERE mobile = ? AND uid = ?`,
-        [phoneNumber, req.decode.uid],
+        `SELECT * FROM contact WHERE mobile = ? AND uid = ?${tSave.sql}`,
+        [phoneNumber, req.decode.uid, ...tSave.params],
       );
       if (findExist.length > 0) {
         return res.json({ success: false, msg: "Contact already existed" });
       }
 
+      const insContact = tenantInsert(req);
       await query(
-        `INSERT INTO contact (uid, phonebook_id, phonebook_name, name, mobile, var1, var2, var3, var4, var5) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT INTO contact (uid, phonebook_id, phonebook_name, name, mobile, var1, var2, var3, var4, var5${insContact.cols}) VALUES (?,?,?,?,?,?,?,?,?,?${insContact.vals})`,
         [
           req.decode.uid,
           phoneBookId,
@@ -956,6 +975,7 @@ router.post(
           var3 || "",
           var4 || "",
           var5 || "",
+          ...insContact.params,
         ],
       );
 
@@ -971,9 +991,12 @@ router.post(
 router.post("/del_contact", validateUser, async (req, res) => {
   try {
     const { id } = req.body;
-    await query(`DELETE FROM contact WHERE id = ? AND uid = ?`, [
+    // isolamento multi-tenant
+    const tDel = tenantFilter(req);
+    await query(`DELETE FROM contact WHERE id = ? AND uid = ?${tDel.sql}`, [
       id,
       req.decode.uid,
+      ...tDel.params,
     ]);
     res.json({ success: true, msg: "Contact was deleted" });
   } catch (err) {
@@ -1789,17 +1812,19 @@ router.post("/update_profile", validateUser, async (req, res) => {
 // get dashboard
 router.get("/get_dashboard_old", validateUser, async (req, res) => {
   try {
+    // isolamento multi-tenant (chats do tenant)
+    const tDashOld = tenantFilter(req);
     const getOpenChat = await query(
-      `SELECT * FROM chats WHERE uid = ? AND chat_status = ?`,
-      [req.decode.uid, "open"],
+      `SELECT * FROM chats WHERE uid = ? AND chat_status = ?${tDashOld.sql}`,
+      [req.decode.uid, "open", ...tDashOld.params],
     );
     const getOpenPending = await query(
-      `SELECT * FROM chats WHERE uid = ? AND chat_status = ?`,
-      [req.decode.uid, "pending"],
+      `SELECT * FROM chats WHERE uid = ? AND chat_status = ?${tDashOld.sql}`,
+      [req.decode.uid, "pending", ...tDashOld.params],
     );
     const getOpenResolved = await query(
-      `SELECT * FROM chats WHERE uid = ? AND chat_status = ?`,
-      [req.decode.uid, "solved"],
+      `SELECT * FROM chats WHERE uid = ? AND chat_status = ?${tDashOld.sql}`,
+      [req.decode.uid, "solved", ...tDashOld.params],
     );
 
     const getActiveChatbots = await query(
@@ -1817,16 +1842,20 @@ router.get("/get_dashboard_old", validateUser, async (req, res) => {
     const activeBot = getUserOrderssByMonth(getActiveChatbots);
     const dActiveBot = getUserOrderssByMonth(getDActiveChatbots);
 
-    // get total chats
-    const totalChats = await query(`SELECT * FROM chats WHERE uid = ?`, [
-      req.decode.uid,
-    ]);
+    // get total chats (isolamento multi-tenant)
+    const totalChats = await query(
+      `SELECT * FROM chats WHERE uid = ?${tDashOld.sql}`,
+      [req.decode.uid, ...tDashOld.params],
+    );
     const totalChatbots = await query(`SELECT * FROM chatbot WHERE uid = ?`, [
       req.decode.uid,
     ]);
-    const totalContacts = await query(`SELECT * FROM contact WHERE uid = ?`, [
-      req.decode.uid,
-    ]);
+    // isolamento multi-tenant (contatos)
+    const tCount = tenantFilter(req);
+    const totalContacts = await query(
+      `SELECT * FROM contact WHERE uid = ?${tCount.sql}`,
+      [req.decode.uid, ...tCount.params],
+    );
     const totalFlows = await query(`SELECT * FROM flow WHERE uid = ?`, [
       req.decode.uid,
     ]);
@@ -1865,23 +1894,25 @@ router.get("/get_dashboard", validateUser, async (req, res) => {
     // 1. User Profile Data
     const user = await query("SELECT * FROM user WHERE uid = ?", [uid]);
 
-    // 2. Statistics
+    // 2. Statistics (isolamento multi-tenant)
+    const tStats = tenantFilter(req);
     const [agents, activeChats, completedTasks, activeInstances] =
       await Promise.all([
-        query("SELECT COUNT(*) as count FROM agents WHERE owner_uid = ?", [
-          uid,
-        ]),
         query(
-          "SELECT COUNT(*) as count FROM beta_chats WHERE uid = ? AND unread_count > 0",
-          [uid],
+          `SELECT COUNT(*) as count FROM agents WHERE owner_uid = ?${tStats.sql}`,
+          [uid, ...tStats.params],
         ),
         query(
-          "SELECT COUNT(*) as count FROM agent_task WHERE owner_uid = ? AND status = 'COMPLETED'",
-          [uid],
+          `SELECT COUNT(*) as count FROM beta_chats WHERE uid = ? AND unread_count > 0${tStats.sql}`,
+          [uid, ...tStats.params],
         ),
         query(
-          "SELECT COUNT(*) as count FROM instance WHERE uid = ? AND status = 'ACTIVE'",
-          [uid],
+          `SELECT COUNT(*) as count FROM agent_task WHERE owner_uid = ? AND status = 'COMPLETED'${tStats.sql}`,
+          [uid, ...tStats.params],
+        ),
+        query(
+          `SELECT COUNT(*) as count FROM instance WHERE uid = ? AND status = 'ACTIVE'${tStats.sql}`,
+          [uid, ...tStats.params],
         ),
       ]);
 
@@ -1891,18 +1922,19 @@ router.get("/get_dashboard", validateUser, async (req, res) => {
     // 4. Unread Messages Summary
     const unreadSummary = [];
 
-    // 5. Active Chatbots
+    // 5. Active Chatbots (isolamento multi-tenant)
+    const tBot = tenantFilter(req);
     const activeChatbots = await query(
       `
       SELECT title, flow_id 
       FROM beta_chatbot 
-      WHERE uid = ? AND active = 1
+      WHERE uid = ? AND active = 1${tBot.sql}
       LIMIT 3
     `,
-      [uid],
+      [uid, ...tBot.params],
     );
 
-    // 6. Performance Metrics (last 7 days)
+    // 6. Performance Metrics (last 7 days) (isolamento multi-tenant)
     const performanceData = await query(
       `
       SELECT 
@@ -1910,11 +1942,11 @@ router.get("/get_dashboard", validateUser, async (req, res) => {
         COUNT(CASE WHEN route = 'INCOMING' THEN 1 END) as incoming,
         COUNT(CASE WHEN route = 'OUTGOING' THEN 1 END) as outgoing
       FROM beta_conversation
-      WHERE uid = ? AND createdAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+      WHERE uid = ? AND createdAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)${tBot.sql}
       GROUP BY DATE(createdAt)
       ORDER BY date ASC
     `,
-      [uid],
+      [uid, ...tBot.params],
     );
 
     const data = {
@@ -2151,9 +2183,11 @@ router.post("/add_task_for_agent", validateUser, async (req, res) => {
       return res.json({ msg: "Please select an agent" });
     }
 
+    // isolamento multi-tenant (INSERT com tenant_id)
+    const insTask = tenantInsert(req);
     await query(
-      `INSERT INTO agent_task (owner_uid, uid, title, description, status) VALUES (?,?,?,?,?)`,
-      [req.decode.uid, agent_uid, title, des, "PENDING"],
+      `INSERT INTO agent_task (owner_uid, uid, title, description, status${insTask.cols}) VALUES (?,?,?,?,?${insTask.vals})`,
+      [req.decode.uid, agent_uid, title, des, "PENDING", ...insTask.params],
     );
 
     res.json({ success: true, msg: "Task was added" });
@@ -2166,14 +2200,16 @@ router.post("/add_task_for_agent", validateUser, async (req, res) => {
 // get my agent tasks
 router.get("/get_my_agent_tasks", validateUser, async (req, res) => {
   try {
+    // isolamento multi-tenant (JOIN: usa alias da tabela)
+    const tTask = tenantFilter(req, "agent_task");
     const data = await query(
       `
             SELECT agent_task.*, agents.email AS agent_email
             FROM agent_task
             JOIN agents ON agents.uid = agent_task.uid
-            WHERE agent_task.owner_uid = ?
+            WHERE agent_task.owner_uid = ?${tTask.sql}
         `,
-      [req.decode.uid],
+      [req.decode.uid, ...tTask.params],
     );
 
     res.json({ data, success: true });
@@ -2187,10 +2223,12 @@ router.get("/get_my_agent_tasks", validateUser, async (req, res) => {
 router.post("/del_task_for_agent", validateUser, async (req, res) => {
   try {
     const { id } = req.body;
-    await query(`DELETE FROM agent_task WHERE id = ? AND owner_uid = ?`, [
-      id,
-      req.decode.uid,
-    ]);
+    // isolamento multi-tenant
+    const tDelTask = tenantFilter(req);
+    await query(
+      `DELETE FROM agent_task WHERE id = ? AND owner_uid = ?${tDelTask.sql}`,
+      [id, req.decode.uid, ...tDelTask.params],
+    );
 
     res.json({ msg: "Task was deleted", success: true });
   } catch (err) {
@@ -2349,9 +2387,11 @@ router.post("/update_agent_profile", validateUser, async (req, res) => {
       });
     }
 
+    // isolamento multi-tenant
+    const tAgent = tenantFilter(req);
     const [agent] = await query(
-      `SELECT * FROM agents WHERE uid = ? AND owner_uid = ?`,
-      [uid, req.decode.uid],
+      `SELECT * FROM agents WHERE uid = ? AND owner_uid = ?${tAgent.sql}`,
+      [uid, req.decode.uid, ...tAgent.params],
     );
 
     if (!agent) {
@@ -2367,15 +2407,15 @@ router.post("/update_agent_profile", validateUser, async (req, res) => {
       await query(
         `UPDATE agents 
          SET email = ?, name = ?, mobile = ?, password = ? 
-         WHERE uid = ? AND owner_uid = ?`,
-        [email, name, mobile, hasPas, uid, req.decode.uid],
+         WHERE uid = ? AND owner_uid = ?${tAgent.sql}`,
+        [email, name, mobile, hasPas, uid, req.decode.uid, ...tAgent.params],
       );
     } else {
       await query(
         `UPDATE agents 
          SET email = ?, name = ?, mobile = ? 
-         WHERE uid = ? AND owner_uid = ?`,
-        [email, name, mobile, uid, req.decode.uid],
+         WHERE uid = ? AND owner_uid = ?${tAgent.sql}`,
+        [email, name, mobile, uid, req.decode.uid, ...tAgent.params],
       );
     }
 
@@ -2404,9 +2444,11 @@ router.post("/auto_agent_login", validateUser, async (req, res) => {
       });
     }
 
+    // isolamento multi-tenant
+    const tAuto = tenantFilter(req);
     const agentFind = await query(
-      `SELECT * FROM agents WHERE uid = ? AND owner_uid = ?`,
-      [uid, req.decode.uid],
+      `SELECT * FROM agents WHERE uid = ? AND owner_uid = ?${tAuto.sql}`,
+      [uid, req.decode.uid, ...tAuto.params],
     );
 
     if (agentFind.length < 1) {
@@ -2628,10 +2670,12 @@ router.post("/get_agent_report_old", validateUser, async (req, res) => {
       });
     }
 
-    // 1. Get agent data (including logs)
-    const [agentData] = await query(`SELECT * FROM agents WHERE uid = ?`, [
-      agentUid,
-    ]);
+    // 1. Get agent data (including logs) (isolamento multi-tenant)
+    const tRep = tenantFilter(req);
+    const [agentData] = await query(
+      `SELECT * FROM agents WHERE uid = ?${tRep.sql}`,
+      [agentUid, ...tRep.params],
+    );
     if (!agentData) {
       return res.status(404).json({
         success: false,
@@ -2642,10 +2686,10 @@ router.post("/get_agent_report_old", validateUser, async (req, res) => {
     // Parse agent logs
     const agentLogs = agentData.logs ? JSON.parse(agentData.logs) : {};
 
-    // 2. Get all chats assigned to this agent
+    // 2. Get all chats assigned to this agent (isolamento multi-tenant)
     const agentChats = await query(
-      `SELECT * FROM beta_chats WHERE assigned_agent LIKE ? AND createdAt BETWEEN ? AND ?`,
-      [`%${agentUid}%`, startDate, endDate],
+      `SELECT * FROM beta_chats WHERE assigned_agent LIKE ? AND createdAt BETWEEN ? AND ?${tRep.sql}`,
+      [`%${agentUid}%`, startDate, endDate, ...tRep.params],
     );
 
     // 3. Get all conversations for these chats
@@ -2653,8 +2697,8 @@ router.post("/get_agent_report_old", validateUser, async (req, res) => {
     let allConvos = [];
     if (chatIds.length > 0) {
       allConvos = await query(
-        `SELECT * FROM beta_conversation WHERE chat_id IN (?) ORDER BY timestamp ASC`,
-        [chatIds],
+        `SELECT * FROM beta_conversation WHERE chat_id IN (?)${tRep.sql} ORDER BY timestamp ASC`,
+        [chatIds, ...tRep.params],
       );
     }
 
@@ -2915,9 +2959,10 @@ router.post("/get_agent_report", validateUser, async (req, res) => {
       };
     }
 
-    // Get agent's chats with optional date filtering
-    let agentChatsQuery = `SELECT * FROM beta_chats WHERE assigned_agent LIKE ?`;
-    const agentChatsParams = [`%${uid}%`];
+    // Get agent's chats with optional date filtering (isolamento multi-tenant)
+    const tRpt2 = tenantFilter(req);
+    let agentChatsQuery = `SELECT * FROM beta_chats WHERE assigned_agent LIKE ?${tRpt2.sql}`;
+    const agentChatsParams = [`%${uid}%`, ...tRpt2.params];
 
     if (dateFilter.chatDate) {
       agentChatsQuery += ` AND createdAt BETWEEN ? AND ?`;
@@ -2926,8 +2971,11 @@ router.post("/get_agent_report", validateUser, async (req, res) => {
 
     const agentChats = await query(agentChatsQuery, agentChatsParams);
 
-    // Get agent data including logs
-    const agentData = await query(`SELECT * FROM agents WHERE uid = ?`, [uid]);
+    // Get agent data including logs (isolamento multi-tenant)
+    const agentData = await query(
+      `SELECT * FROM agents WHERE uid = ?${tRpt2.sql}`,
+      [uid, ...tRpt2.params],
+    );
 
     // Calculate time spent in panel
     let totalTimeSpent = 0;
@@ -2959,9 +3007,10 @@ router.post("/get_agent_report", validateUser, async (req, res) => {
 
     // Only query conversations if we have chat IDs
     if (chatIds.length > 0) {
-      // Get conversations with optional date filtering
-      let conversationsQuery = `SELECT * FROM beta_conversation WHERE chat_id IN (?)`;
-      const conversationsParams = [chatIds];
+      // Get conversations with optional date filtering (isolamento multi-tenant)
+      const tConv2 = tenantFilter(req);
+      let conversationsQuery = `SELECT * FROM beta_conversation WHERE chat_id IN (?)${tConv2.sql}`;
+      const conversationsParams = [chatIds, ...tConv2.params];
 
       if (dateFilter.chatDate) {
         conversationsQuery += ` AND createdAt BETWEEN ? AND ?`;
@@ -3848,9 +3897,12 @@ router.post("/update_fcm_choice", validateUser, async (req, res) => {
 // GET all tags (already exists)
 router.get("/get_chat_tags", validateUser, async (req, res) => {
   try {
-    const data = await query(`SELECT * FROM chat_tags WHERE uid = ?`, [
-      req.decode.uid,
-    ]);
+    // isolamento multi-tenant
+    const tTags = tenantFilter(req);
+    const data = await query(
+      `SELECT * FROM chat_tags WHERE uid = ?${tTags.sql}`,
+      [req.decode.uid, ...tTags.params],
+    );
     res.json({ success: true, data });
   } catch (err) {
     logger.error(err);
@@ -3865,11 +3917,12 @@ router.post("/add_chat_tag", validateUser, async (req, res) => {
     if (!title || title.length > 12)
       return res.json({ success: false, msg: "Invalid title" });
 
-    await query(`INSERT INTO chat_tags (uid, title, hex) VALUES (?, ?, ?)`, [
-      req.decode.uid,
-      title,
-      hex || "#6366F1",
-    ]);
+    // isolamento multi-tenant (INSERT com tenant_id)
+    const insTag = tenantInsert(req);
+    await query(
+      `INSERT INTO chat_tags (uid, title, hex${insTag.cols}) VALUES (?, ?, ?${insTag.vals})`,
+      [req.decode.uid, title, hex || "#6366F1", ...insTag.params],
+    );
     res.json({ success: true });
   } catch (err) {
     logger.error(err);
@@ -3881,10 +3934,12 @@ router.post("/add_chat_tag", validateUser, async (req, res) => {
 router.post("/delete_chat_tag", validateUser, async (req, res) => {
   try {
     const { labelId } = req.body;
-    await query(`DELETE FROM chat_tags WHERE id = ? AND uid = ?`, [
-      labelId,
-      req.decode.uid,
-    ]);
+    // isolamento multi-tenant
+    const tDelTag2 = tenantFilter(req);
+    await query(
+      `DELETE FROM chat_tags WHERE id = ? AND uid = ?${tDelTag2.sql}`,
+      [labelId, req.decode.uid, ...tDelTag2.params],
+    );
     res.json({ success: true });
   } catch (err) {
     logger.error(err);
@@ -3900,19 +3955,28 @@ router.get("/get_phonebook_for_inbox", validateUser, async (req, res) => {
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const searchTerm = `%${search}%`;
 
+    // isolamento multi-tenant
+    const tPb = tenantFilter(req);
     const [countResult] = await query(
       `SELECT COUNT(*) as total FROM contact 
-       WHERE uid = ? AND (name LIKE ? OR mobile LIKE ?)`,
-      [req.decode.uid, searchTerm, searchTerm],
+       WHERE uid = ? AND (name LIKE ? OR mobile LIKE ?)${tPb.sql}`,
+      [req.decode.uid, searchTerm, searchTerm, ...tPb.params],
     );
 
     const data = await query(
       `SELECT id, name, mobile, phonebook_name, var1, var2 
        FROM contact 
-       WHERE uid = ? AND (name LIKE ? OR mobile LIKE ?)
+       WHERE uid = ? AND (name LIKE ? OR mobile LIKE ?)${tPb.sql}
        ORDER BY name ASC
        LIMIT ? OFFSET ?`,
-      [req.decode.uid, searchTerm, searchTerm, parseInt(limit), offset],
+      [
+        req.decode.uid,
+        searchTerm,
+        searchTerm,
+        ...tPb.params,
+        parseInt(limit),
+        offset,
+      ],
     );
 
     res.json({

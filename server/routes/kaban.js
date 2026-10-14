@@ -3,6 +3,9 @@ const { query } = require("../database/dbpromise.js");
 const validateUser = require("../middlewares/user.js");
 const { checkPlan } = require("../middlewares/plan.js");
 const logger = require("../utils/logger.js");
+const {
+  tenantFilter,
+} = require("../utils/tenantScope.js");
 
 // ── Move card ─────────────────────────────────────────────────────────────────
 router.post("/move_card", validateUser, checkPlan, async (req, res) => {
@@ -12,23 +15,25 @@ router.post("/move_card", validateUser, checkPlan, async (req, res) => {
 
     if (!chatId) return res.json({ success: false, msg: "chatId is required" });
 
+    // isolamento multi-tenant
+    const tMove = tenantFilter(req);
     const [chat] = await query(
-      `SELECT id, chat_label FROM beta_chats WHERE id = ? AND uid = ?`,
-      [chatId, uid],
+      `SELECT id, chat_label FROM beta_chats WHERE id = ? AND uid = ?${tMove.sql}`,
+      [chatId, uid, ...tMove.params],
     );
     if (!chat) return res.json({ success: false, msg: "Chat not found" });
 
     if (!newLabelId) {
       await query(
-        `UPDATE beta_chats SET chat_label = ?, kanban_order = ? WHERE id = ? AND uid = ?`,
-        [JSON.stringify([]), kanban_order ?? 0, chatId, uid],
+        `UPDATE beta_chats SET chat_label = ?, kanban_order = ? WHERE id = ? AND uid = ?${tMove.sql}`,
+        [JSON.stringify([]), kanban_order ?? 0, chatId, uid, ...tMove.params],
       );
       return res.json({ success: true });
     }
 
     const [newLabel] = await query(
-      `SELECT * FROM chat_tags WHERE id = ? AND uid = ?`,
-      [newLabelId, uid],
+      `SELECT * FROM chat_tags WHERE id = ? AND uid = ?${tMove.sql}`,
+      [newLabelId, uid, ...tMove.params],
     );
     if (!newLabel) return res.json({ success: false, msg: "Label not found" });
 
@@ -41,8 +46,8 @@ router.post("/move_card", validateUser, checkPlan, async (req, res) => {
     const updatedLabels = [newLabel, ...existingLabels.slice(1)];
 
     await query(
-      `UPDATE beta_chats SET chat_label = ?, kanban_order = ? WHERE id = ? AND uid = ?`,
-      [JSON.stringify(updatedLabels), kanban_order ?? 0, chatId, uid],
+      `UPDATE beta_chats SET chat_label = ?, kanban_order = ? WHERE id = ? AND uid = ?${tMove.sql}`,
+      [JSON.stringify(updatedLabels), kanban_order ?? 0, chatId, uid, ...tMove.params],
     );
 
     res.json({ success: true });
@@ -61,9 +66,11 @@ router.post("/update_tag_kanban_visibility", validateUser, async (req, res) => {
     if (!labelId)
       return res.json({ success: false, msg: "labelId is required" });
 
+    // isolamento multi-tenant
+    const tTag = tenantFilter(req);
     await query(
-      `UPDATE chat_tags SET show_on_kanban = ? WHERE id = ? AND uid = ?`,
-      [show_on_kanban ? 1 : 0, labelId, uid],
+      `UPDATE chat_tags SET show_on_kanban = ? WHERE id = ? AND uid = ?${tTag.sql}`,
+      [show_on_kanban ? 1 : 0, labelId, uid, ...tTag.params],
     );
 
     res.json({ success: true });
@@ -86,14 +93,20 @@ router.post("/get_board", validateUser, checkPlan, async (req, res) => {
       dateTo = null,
     } = req.body;
 
-    // Only fetch labels that are shown on kanban
+    // Only fetch labels that are shown on kanban (isolamento multi-tenant)
+    const tBoard = tenantFilter(req);
     const labels = await query(
-      `SELECT * FROM chat_tags WHERE uid = ? AND show_on_kanban = 1 ORDER BY id ASC`,
-      [uid],
+      `SELECT * FROM chat_tags WHERE uid = ? AND show_on_kanban = 1${tBoard.sql} ORDER BY id ASC`,
+      [uid, ...tBoard.params],
     );
 
     let searchCondition = `WHERE uid = ?`;
     const params = [uid];
+
+    if (tBoard.sql) {
+      searchCondition += tBoard.sql;
+      params.push(...tBoard.params);
+    }
 
     // ── Date filter ──────────────────────────────────────────────────────────
     const now = new Date();

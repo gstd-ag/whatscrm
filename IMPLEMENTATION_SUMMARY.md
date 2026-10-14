@@ -32,6 +32,13 @@ Transformação do WhatsCRM em SaaS White-Label/Multi-Tenant, com:
 | `DEPLOY_HOSTINGER_KVM4.md` | doc | Guia de deploy VPS Hostinger KVM 4 (Dokploy coexistente) |
 | `MULTI_TENANT_PLAN.md` | doc | Roadmap em 8 fases |
 | `IMPLEMENTATION_SUMMARY.md` | doc | Este documento |
+| `server/utils/tenantScope.js` | **novo** | Helper aditivo de isolamento: `tenantFilter(req)` (`AND (tenant_id = ? OR tenant_id IS NULL)`, endurecível com `TENANT_STRICT=1`), `tenantInsert(req)`, `getTenantId`, `requireTenant`. Sem `req.tenantId` → no-op (fallback legado) |
+| `database/migrations/20261014_backfill_legacy.sql` | **novo** | Migração 03 (idempotente): garante `tenant_id`+índice em `chats`/`agent_chats` e faz `UPDATE ... WHERE tenant_id IS NULL → tenant padrão` em toda tabela com a coluna (cursor via information_schema) |
+| `server/socket.js` | **aditivo** | Salas `tenant_{id}` e `tenant_{id}_user_{uid}` no handshake (resolver: JWT → agents.tenant_id → tenant_users); `sendToUid` com 4º param `tenantId` (+ auto-detecção em `data.tenantId`), nova `sendToTenantUid`, `sendToAll` com sala; agentes também entram na sala do dono (paridade legada) |
+| `server/routes/web.js` | **aditivo** | `GET /api/web/branding` (público; subdomínio/`X-Tenant-Slug`/`?tenant=`) retorna `companyName`, `logoUrl`, `faviconUrl`, `primaryColor`, `secondaryColor`; chamada a `patchIndexHtml` agora exig `ENABLE_INDEX_PATCH=1` (padrão: desligado — fim da sobrescrita global do index.html) |
+| `server/client/public/index.html` | **aditivo** | Script no `<head>` que busca `/api/web/branding` e aplica `document.title`, favicon e `:root { --primary-color / --secondary-color }` |
+| Rotas com filtro de tenant | **aditivo** | `user.js`, `phonebook.js`, `agent.js`, `kaban.js`, `broadcast.js`, `insta.js`, `qr.js`, `qrCampaign.js`, `waCall.js` — SELECT/UPDATE/DELETE com `tenantFilter` e INSERTs com `tenantInsert` (contatos, chats, beta_chats/beta_conversation, agent_chats, agent_task, chat_tags, agents, phonebook). `admin.js` mantido global (painel Super Admin) |
+| `server/server.js` / `server/app.js` | **aditivo** | Handlers globais `unhandledRejection`/`uncaughtException` (TAREFA 5); `app.js` ganhou `resolveTenant` (entrypoint legado paridade) |
 
 ## 3. Fluxo de autenticação
 
@@ -107,15 +114,25 @@ subdomínio+header) — todos resolvem o tenant correto.
 
 ## 8. Pendências conhecidas (fases seguintes)
 
+> **Execução do prompt técnico (5 tarefas) concluída e validada:**
+> ✅ TAREFA 1 — `WHERE tenant_id = ?` via `tenantFilter` em 9 arquivos de rota
+> ✅ TAREFA 2 — salas por tenant no Socket.IO + `sendToTenantUid`/`sendToAll` com sala
+> ✅ TAREFA 3 — `GET /api/web/branding` + script dinâmico no `<head>`; `patchIndexHtml` desligado por padrão (`ENABLE_INDEX_PATCH=1` para reativar)
+> ✅ TAREFA 4 — `20261014_backfill_legacy.sql` (idempotente; `chats`/`agent_chats` ganham coluna+índice; UPDATE → tenant padrão) montada como `initdb.d/03-backfill.sql`
+> ✅ TAREFA 5 — `unhandledRejection`/`uncaughtException` no topo de `server.js`
+>
+> Validação real: MariaDB 10.11 + Node 20 — migração 02/03 2× (idempotentes), servidor boot limpo,
+> isolamento comprovado (tenant 1 vê tags [1,10] / tenant 2 vê [9]), INSERT grava `tenant_id`,
+> salas `tenant_1`/`tenant_1_user_{uid}` confirmadas via handshake Socket.IO, log sem erros,
+> logins admin/superadmin/regressão OK.
+
 | Item | Prioridade | Nota |
 |---|---|---|
-| Aplicar `WHERE tenant_id = ?` nas queries das rotas | Alta | Pré-requisito para liberar a múltiplos clientes |
-| Isolamento por tenant no Socket.IO (`sendToUid`) | Alta | Salas por tenant no `socket.js` |
-| White-label por tenant no `index.html` | Alta | Hoje `patchIndexHtml` grava **1 arquivo global** — branding de um tenant afetaria todos; precisa injeção por request |
+| Endurecer filtro: `TENANT_STRICT=1` após backfill em produção | Alta | Enquanto houver NULLs no banco, o helper usa `OR tenant_id IS NULL` (transição segura); com backfill aplicado, vire `tenant_id = ?` puro |
+| Executar migração `03-backfill.sql` manualmente em bancos existentes | Alta | `initdb.d` só roda no primeiro boot do volume — ver comando no cabeçalho do arquivo |
 | Sessões Baileys indexadas por tenant | Média | Verificar `extractUidFromSessionId`/mapa de conexões |
-| Backfill dos dados legados (UPDATE tenant_id) | Média | Script comentado na seção 9 da migração |
+| `verifyTenantOuSuperAdmin` em rotas id-based legadas | Média | Ex.: `del_phonebook` opera por `id` — pertencimento ao tenant deve ser conferido por rota (guarda pronta em `middlewares/tenant.js`) |
 | Seed `tenant_users` vazio em instalação nova | Baixa | Dump não tem usuário `admin@admin.com` na tabela `user`; vincular via convite no painel |
-| Handler `unhandledRejection` global | Baixa | Não existe hoje; logs de erro assíncronos podem morrer em silêncio |
 | Remover `server/.env.audit` local | Baixa | Já está no `.gitignore`, não vai ao Git |
 
 ## 9. Comandos de teste (staging)

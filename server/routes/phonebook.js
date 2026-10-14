@@ -12,6 +12,10 @@ const csv = require("csv-parser");
 const fs = require("fs");
 const { checkPlan, checkContactLimit } = require("../middlewares/plan.js");
 const logger = require("../utils/logger.js");
+const {
+  tenantFilter,
+  tenantInsert,
+} = require("../utils/tenantScope.js");
 
 // add phonebook name
 router.post(
@@ -30,10 +34,11 @@ router.post(
         });
       }
 
-      // find ext
+      // find ext (isolamento multi-tenant)
+      const tAdd = tenantFilter(req);
       const findExt = await query(
-        `SELECT * FROM phonebook WHERE uid = ? AND name = ?`,
-        [req.decode.uid, name],
+        `SELECT * FROM phonebook WHERE uid = ? AND name = ?${tAdd.sql}`,
+        [req.decode.uid, name, ...tAdd.params],
       );
 
       if (findExt.length > 0) {
@@ -43,10 +48,11 @@ router.post(
         });
       }
 
-      await query(`INSERT INTO phonebook (name, uid) VALUES (?,?)`, [
-        name,
-        req.decode.uid,
-      ]);
+      const insPb = tenantInsert(req);
+      await query(
+        `INSERT INTO phonebook (name, uid${insPb.cols}) VALUES (?,?${insPb.vals})`,
+        [name, req.decode.uid, ...insPb.params],
+      );
       res.json({ success: true, msg: "Phonebook was addedd" });
     } catch (err) {
       res.json({ success: false, msg: "something went wrong" });
@@ -58,15 +64,18 @@ router.post(
 // get by uid
 router.get("/get_by_uid", validateUser, async (req, res) => {
   try {
-    let data = await query(`SELECT * FROM phonebook WHERE uid = ?`, [
+    // isolamento multi-tenant
+    const tGet = tenantFilter(req);
+    let data = await query(`SELECT * FROM phonebook WHERE uid = ?${tGet.sql}`, [
       req.decode.uid,
+      ...tGet.params,
     ]);
 
     data = await Promise.all(
       data.map(async (x) => {
         const [result] = await query(
-          `SELECT COUNT(*) AS count FROM contact WHERE phonebook_id = ?`,
-          [x.id],
+          `SELECT COUNT(*) AS count FROM contact WHERE phonebook_id = ?${tGet.sql}`,
+          [x.id, ...tGet.params],
         );
         return { ...x, contactCount: result.count };
       }),
@@ -84,9 +93,10 @@ router.put("/edit_contact", validateUser, async (req, res) => {
   const { contactId, name, mobile, var1, var2, var3, var4, var5 } = req.body;
 
   try {
-    // Update contact in the database
+    // Update contact in the database (isolamento multi-tenant)
+    const tEdit = tenantFilter(req);
     const result = await query(
-      `UPDATE contact SET name = ?, mobile = ?, var1 = ?, var2 = ?, var3 = ?, var4 = ?, var5 = ?, var6 = ? WHERE id = ? AND uid = ?`,
+      `UPDATE contact SET name = ?, mobile = ?, var1 = ?, var2 = ?, var3 = ?, var4 = ?, var5 = ?, var6 = ? WHERE id = ? AND uid = ?${tEdit.sql}`,
       [
         name,
         mobile,
@@ -98,6 +108,7 @@ router.put("/edit_contact", validateUser, async (req, res) => {
         var6,
         contactId,
         req.decode.uid,
+        ...tEdit.params,
       ],
     );
 
@@ -117,11 +128,16 @@ router.post("/del_phonebook", validateUser, async (req, res) => {
   try {
     const { id } = req.body;
 
-    await query(`DELETE FROM phonebook WHERE id = ?`, [id]);
-    await query(`DELETE FROM contact WHERE phonebook_id = ? AND uid = ?`, [
+    // isolamento multi-tenant
+    const tDelPb = tenantFilter(req);
+    await query(`DELETE FROM phonebook WHERE id = ?${tDelPb.sql}`, [
       id,
-      req.decode.uid,
+      ...tDelPb.params,
     ]);
+    await query(
+      `DELETE FROM contact WHERE phonebook_id = ? AND uid = ?${tDelPb.sql}`,
+      [id, req.decode.uid, ...tDelPb.params],
+    );
 
     res.json({ success: true, msg: "Phonebook was deleted" });
   } catch (err) {
@@ -229,21 +245,27 @@ router.post(
         });
       }
 
-      const values = csvData.map((item) => [
-        req.decode.uid,
-        id,
-        phonebook_name,
-        item.name,
-        String(item.mobile).trim(),
-        item.var1,
-        item.var2,
-        item.var3,
-        item.var4,
-        item.var5,
-      ]);
+      // isolamento multi-tenant (bulk insert com tenant_id)
+      const insBulk = tenantInsert(req);
+      const values = csvData.map((item) => {
+        const row = [
+          req.decode.uid,
+          id,
+          phonebook_name,
+          item.name,
+          String(item.mobile).trim(),
+          item.var1,
+          item.var2,
+          item.var3,
+          item.var4,
+          item.var5,
+        ];
+        if (insBulk.cols) row.push(...insBulk.params);
+        return row;
+      });
 
       await query(
-        `INSERT INTO contact (uid, phonebook_id, phonebook_name, name, mobile, var1, var2, var3, var4, var5) VALUES ?`,
+        `INSERT INTO contact (uid, phonebook_id, phonebook_name, name, mobile, var1, var2, var3, var4, var5${insBulk.cols}) VALUES ?`,
         [values],
       );
 
@@ -289,8 +311,10 @@ router.post(
         });
       }
 
+      // isolamento multi-tenant (INSERT com tenant_id)
+      const insSingle = tenantInsert(req);
       await query(
-        `INSERT INTO contact (uid, phonebook_id, phonebook_name, name, mobile, var1, var2, var3, var4, var5) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT INTO contact (uid, phonebook_id, phonebook_name, name, mobile, var1, var2, var3, var4, var5${insSingle.cols}) VALUES (?,?,?,?,?,?,?,?,?,?${insSingle.vals})`,
         [
           req.decode.uid,
           id,
@@ -302,6 +326,7 @@ router.post(
           var3,
           var4,
           var5,
+          ...insSingle.params,
         ],
       );
 
@@ -331,6 +356,13 @@ router.get("/get_uid_contacts", validateUser, async (req, res) => {
 
     let whereClauses = ["uid = ?"];
     let params = [req.decode.uid];
+
+    // isolamento multi-tenant
+    const tList = tenantFilter(req);
+    if (tList.sql) {
+      whereClauses.push(tList.sql.replace(/^ AND /, ""));
+      params.push(...tList.params);
+    }
 
     if (search) {
       whereClauses.push("(name LIKE ? OR mobile LIKE ?)");
@@ -373,7 +405,12 @@ router.get("/get_uid_contacts", validateUser, async (req, res) => {
 // dele contcats
 router.post("/del_contacts", validateUser, async (req, res) => {
   try {
-    await query(`DELETE FROM contact WHERE id IN (?)`, [req.body.selected]);
+    // isolamento multi-tenant
+    const tDelC = tenantFilter(req);
+    await query(`DELETE FROM contact WHERE id IN (?)${tDelC.sql}`, [
+      req.body.selected,
+      ...tDelC.params,
+    ]);
     res.json({ success: true, msg: "Contact(s) was deleted" });
   } catch (err) {
     res.json({ success: false, msg: "something went wrong" });
@@ -384,9 +421,11 @@ router.post("/del_contacts", validateUser, async (req, res) => {
 // In phonebook.js router — just a simple read, no new logic
 router.get("/get_for_flow", validateUser, async (req, res) => {
   try {
+    // isolamento multi-tenant
+    const tFlow = tenantFilter(req);
     const data = await query(
-      `SELECT id, name FROM phonebook WHERE uid = ? ORDER BY name ASC`,
-      [req.decode.uid],
+      `SELECT id, name FROM phonebook WHERE uid = ?${tFlow.sql} ORDER BY name ASC`,
+      [req.decode.uid, ...tFlow.params],
     );
     res.json({ success: true, data });
   } catch (err) {
@@ -403,6 +442,13 @@ router.get("/export_contacts_csv", validateUser, async (req, res) => {
 
     let whereClauses = ["uid = ?"];
     let params = [req.decode.uid];
+
+    // isolamento multi-tenant
+    const tExp = tenantFilter(req);
+    if (tExp.sql) {
+      whereClauses.push(tExp.sql.replace(/^ AND /, ""));
+      params.push(...tExp.params);
+    }
 
     if (search) {
       whereClauses.push("(name LIKE ? OR mobile LIKE ?)");

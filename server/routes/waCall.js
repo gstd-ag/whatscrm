@@ -16,6 +16,7 @@ const {
 } = require("../helper/addon/wacall/broadcastProcessor.js");
 const axios = require("axios");
 const logger = require("../utils/logger.js");
+const { tenantFilter, tenantInsert } = require("../utils/tenantScope.js");
 
 // add new beta
 router.post("/insert_flow", validateUser, checkPlan, async (req, res) => {
@@ -292,9 +293,11 @@ router.post("/create_broadcast", validateUser, checkPlan, async (req, res) => {
       return res.json({ msg: "Title and Flow are required" });
     }
 
+    // isolamento multi-tenant
+    const tWa = tenantFilter(req);
     const contacts = await query(
-      `SELECT * FROM contact WHERE uid = ? AND phonebook_id = ?`,
-      [req.decode.uid, phonebook?.id],
+      `SELECT * FROM contact WHERE uid = ? AND phonebook_id = ?${tWa.sql}`,
+      [req.decode.uid, phonebook?.id, ...tWa.params],
     );
 
     if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {

@@ -17,6 +17,7 @@ const validateUser = require("../middlewares/user.js");
 const validateAgent = require("../middlewares/agent.js");
 const jwt = require("jsonwebtoken");
 const logger = require("../utils/logger.js");
+const { tenantFilter, tenantInsert } = require("../utils/tenantScope.js");
 
 function decodeToken(token) {
   return new Promise((resolve) => {
@@ -771,8 +772,14 @@ router.post("/import_wa_contacts", validateUser, async (req, res) => {
       null,
     ]);
 
+    // isolamento multi-tenant (bulk insert com tenant_id)
+    const insQr = tenantInsert(req);
+    values.forEach((row) => {
+      if (insQr.cols) row.push(...insQr.params);
+    });
+
     await query(
-      `INSERT INTO contact (uid, phonebook_id, phonebook_name, name, mobile, var1, var2, var3, var4, var5) VALUES ?`,
+      `INSERT INTO contact (uid, phonebook_id, phonebook_name, name, mobile, var1, var2, var3, var4, var5${insQr.cols}) VALUES ?`,
       [values],
     );
 

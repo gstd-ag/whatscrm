@@ -39,6 +39,69 @@ const {
 } = require("../helper/addon/insta/insta.js");
 const logger = require("../utils/logger.js");
 
+// ── Branding dinamico por tenant (PUBLICO, ADITIVO) ─────────────────────────
+// Substitui a sobrescrita fisica do index.html (patchIndexHtml) por uma rota
+// que o frontend consulta no boot. Resolucao do tenant: subdominio
+// (resolveTenant), header X-Tenant-Slug ou ?tenant=slug.
+router.get("/branding", async (req, res) => {
+  const FALLBACK = {
+    companyName: "WhatsCRM",
+    logoUrl: "/logo192.png",
+    faviconUrl: "/favicon.ico",
+    primaryColor: "#4f46e5",
+    secondaryColor: "#0ea5e9",
+  };
+
+  try {
+    let tenantId = req.tenantId || null;
+    let tenant = req.tenant || null;
+
+    // Fallback explicito via query (rota publica sem subdominio)
+    if (!tenantId && req.query?.tenant) {
+      const tRows = await query(
+        `SELECT * FROM tenants WHERE slug = ? LIMIT 1`,
+        [String(req.query.tenant).toLowerCase()],
+      );
+      if (tRows.length) {
+        tenantId = tRows[0].id;
+        tenant = tRows[0];
+      }
+    }
+
+    // Config global legada (web_public)
+    const webRows = await query(
+      `SELECT app_name, logo FROM web_public LIMIT 1`,
+      [],
+    );
+    const webCfg = webRows?.[0] || {};
+
+    // Branding especifico do tenant (tenants.settings JSON)
+    let settings = {};
+    try {
+      settings = tenant?.settings ? JSON.parse(tenant.settings) : {};
+    } catch {
+      settings = {};
+    }
+
+    res.json({
+      success: true,
+      tenantSlug: tenant?.slug || null,
+      companyName:
+        settings.companyName || tenant?.name || webCfg.app_name || FALLBACK.companyName,
+      logoUrl:
+        settings.logoUrl ||
+        (webCfg.logo ? `/media/${webCfg.logo}` : FALLBACK.logoUrl),
+      faviconUrl: settings.faviconUrl || FALLBACK.faviconUrl,
+      primaryColor: settings.primaryColor || FALLBACK.primaryColor,
+      secondaryColor: settings.secondaryColor || FALLBACK.secondaryColor,
+    });
+  } catch (err) {
+    logger.error("branding error:", err);
+    // Nunca quebra o frontend: retorna defaults
+    res.json({ success: false, ...FALLBACK });
+  }
+});
+
 router.get("/get_all", async (req, res) => {
   try {
     const data = getAllSocketData();
@@ -342,16 +405,26 @@ router.post("/update_web_config", adminValidator, async (req, res) => {
       ],
     );
 
-    // ── ✅ NEW: Patch index.html ─────────────────────────────────
-    try {
-      patchIndexHtml({
-        app_name,
-        meta_description,
-        logo: filename, // pass null/empty if no logo change is fine too
-      });
-    } catch (htmlErr) {
-      // Non-fatal — log but don't fail the request
-      logger.error("index.html patch failed:", htmlErr);
+    // ── Patch index.html (DESATIVADO por padrao) ─────────────────
+    // A sobrescrita fisica do index.html compartilhado vazava o
+    // white-label de um tenant em todos os outros. Agora o branding
+    // e dinamico via GET /api/web/branding + script no <head>.
+    // Reative apenas em instalacoes single-tenant com ENABLE_INDEX_PATCH=1.
+    if (process.env.ENABLE_INDEX_PATCH === "1") {
+      try {
+        patchIndexHtml({
+          app_name,
+          meta_description,
+          logo: filename, // pass null/empty if no logo change is fine too
+        });
+      } catch (htmlErr) {
+        // Non-fatal — log but don't fail the request
+        logger.error("index.html patch failed:", htmlErr);
+      }
+    } else {
+      logger.log(
+        "index.html patch ignorado (white-label via GET /api/web/branding)",
+      );
     }
 
     res.json({ success: true, msg: "Web config updated" });

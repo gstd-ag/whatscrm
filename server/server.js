@@ -12,6 +12,20 @@ const { initTele, cleanupTele } = require("./helper/addon/telegram/tele.js");
 const { initQrCampaignLoop } = require("./loops/qrCampaignLoop.js");
 const isLogging = process.env.NODE_ENV === "logs";
 
+// ── TAREFA 5: tratamento global de erros nao capturados (ADITIVO) ───────────
+// Registrado no inicio da inicializacao: um erro async em qualquer rota/loop
+// nao derruba o processo (loga [CRITICAL] e mantem o servidor de pe).
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[CRITICAL] Unhandled Rejection at:", promise, "reason:", reason);
+  // Nao derrubar o processo em producao a menos que seja fatal
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("[CRITICAL] Uncaught Exception:", error);
+  // Nao derrubar o processo em producao a menos que seja fatal
+});
+// ── Fim TAREFA 5 ─────────────────────────────────────────────────────────────
+
 function updateLangJsonFromEnglish() {
   try {
     // Adjust this if your languages folder is somewhere else

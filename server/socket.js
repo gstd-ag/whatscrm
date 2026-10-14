@@ -37,6 +37,53 @@ async function getAgentData(uid) {
   }
 }
 
+// ── Multi-tenant: resolve o tenant_id do socket (ADITIVO) ───────────────────
+// Ordem de resolucao:
+//   1) tenant_id embutido no JWT (quando o login o incluir)
+//   2) linha do agente (agents.tenant_id)
+//   3) vinculo ativo do dono em tenant_users (p/ agente legado, via owner_uid)
+//   4) vinculo ativo do usuario em tenant_users
+// Fallback: null -> socket sem sala de tenant (comportamento legado preservado).
+async function resolveSocketTenantId(decoded, isAgent, userData) {
+  try {
+    if (decoded?.tenant_id) return decoded.tenant_id;
+
+    if (isAgent) {
+      if (userData?.tenant_id) return userData.tenant_id;
+      const ownerUid = userData?.owner_uid;
+      if (ownerUid) {
+        const rows = await query(
+          `SELECT tenant_id FROM tenant_users WHERE user_uid = ? AND is_active = 1 ORDER BY id ASC LIMIT 1`,
+          [ownerUid],
+        );
+        if (rows && rows.length > 0) return rows[0].tenant_id;
+      }
+      return null;
+    }
+
+    const rows = await query(
+      `SELECT tenant_id FROM tenant_users WHERE user_uid = ? AND is_active = 1 ORDER BY id ASC LIMIT 1`,
+      [decoded?.uid],
+    );
+    if (rows && rows.length > 0) return rows[0].tenant_id;
+  } catch (err) {
+    // Banco legado sem tabela tenant_users -> apenas sem sala de tenant
+    console.warn("[socket] tenant lookup indisponivel:", err.message);
+  }
+  return null;
+}
+
+// Salas por tenant: tenant_{id} | tenant_{id}_user_{uid}
+function joinTenantRooms(socket, tenantId, uid, isAgent, ownerUid) {
+  if (!tenantId) return;
+  socket.join(`tenant_${tenantId}`);
+  socket.join(`tenant_${tenantId}_user_${uid}`);
+  // Paridade legada: agente tambem recebe mensagens direcionadas ao dono
+  if (isAgent && ownerUid && ownerUid !== uid) {
+    socket.join(`tenant_${tenantId}_user_${ownerUid}`);
+  }
+}
+
 // Socket initialization
 function initializeSocket(server) {
   ioInstance = new Server(server, {
@@ -84,18 +131,29 @@ function initializeSocket(server) {
         throw new Error("User data not found");
       }
 
+      // ── Multi-tenant: resolve tenant e entra nas salas (ADITIVO) ────────
+      const tenantId = await resolveSocketTenantId(
+        socket.decodedToken,
+        isAgent,
+        userData,
+      );
+
       // Store user data on socket
       socket.userData = {
         ...userData,
         socketId: socket.id,
         isAgent,
         connectedAt: new Date(),
+        tenantId: tenantId || null,
       };
+
+      joinTenantRooms(socket, tenantId, userData.uid, isAgent, userData.owner_uid);
 
       // Success response
       socket.emit("connection_ack", {
         status: "success",
         socketId: socket.id,
+        ...(tenantId && { tenantId }),
         userData: {
           uid: userData.uid,
           name: userData.name,
@@ -118,6 +176,7 @@ function initializeSocket(server) {
       socket,
       initializeSocket,
       sendToUid,
+      sendToTenantUid,
       sendToSocket,
       sendToAll,
       getConnectedUsers,
@@ -141,10 +200,40 @@ function initializeSocket(server) {
 }
 
 // Utility functions
-function sendToUid(uid, data, event = "message") {
+// tenantId (4o parametro, ADITIVO): quando informado — ou presente em
+// data.tenantId / data.tenant_id — a emissao e exclusiva da sala
+// tenant_{tenantId}_user_{uid}. Sem tenant -> comportamento legado original.
+function sendToUid(uid, data, event = "message", tenantId = null) {
   if (!ioInstance) {
     console.warn("Socket.IO instance not initialized");
     return false;
+  }
+
+  const effectiveTenantId =
+    tenantId ?? data?.tenantId ?? data?.tenant_id ?? null;
+
+  if (effectiveTenantId !== null && effectiveTenantId !== undefined) {
+    const room = `tenant_${effectiveTenantId}_user_${uid}`;
+    const count = ioInstance.sockets.adapter.rooms.get(room)?.size || 0;
+    if (count > 0) {
+      ioInstance.to(room).emit(event, data);
+      return count;
+    }
+    // Sala vazia/nao existente (sockets legados sem tenant): cai para o loop
+    // legado restrito aos sockets SEM tenant (evita vazar entre tenants)
+    let sentLegacy = 0;
+    ioInstance.sockets.sockets.forEach((socket) => {
+      if (
+        socket.userData &&
+        !socket.userData.tenantId &&
+        (socket.userData.uid === uid ||
+          (socket.userData.isAgent && socket.userData.owner_uid === uid))
+      ) {
+        socket.emit(event, data);
+        sentLegacy++;
+      }
+    });
+    return sentLegacy;
   }
 
   let sentCount = 0;
@@ -160,6 +249,16 @@ function sendToUid(uid, data, event = "message") {
   });
 
   return sentCount;
+}
+
+// ADITIVO: emissao sempre direcionada a sala do tenant
+// io.to(`tenant_${tenantId}_user_${uid}`).emit(event, data)
+function sendToTenantUid(tenantId, uid, data, event = "message") {
+  if (!tenantId) {
+    // Fallback defensivo: sem tenant, mantem o comportamento legado
+    return sendToUid(uid, data, event);
+  }
+  return sendToUid(uid, data, event, tenantId);
 }
 
 function sendToSocket(socketId, data, event = "message") {
@@ -178,10 +277,21 @@ function sendToSocket(socketId, data, event = "message") {
   return false;
 }
 
-function sendToAll(data, event = "message") {
+// tenantId (3o parametro, ADITIVO): quando informado — ou presente em
+// data.tenantId / data.tenant_id — o broadcast vai apenas para a sala
+// tenant_{tenantId}. Sem tenant -> broadcast global (modo legado, deprecado).
+function sendToAll(data, event = "message", tenantId = null) {
   if (!ioInstance) {
     console.warn("Socket.IO instance not initialized");
     return false;
+  }
+
+  const effectiveTenantId =
+    tenantId ?? data?.tenantId ?? data?.tenant_id ?? null;
+
+  if (effectiveTenantId !== null && effectiveTenantId !== undefined) {
+    ioInstance.to(`tenant_${effectiveTenantId}`).emit(event, data);
+    return true;
   }
 
   ioInstance.emit(event, data);
@@ -313,6 +423,7 @@ function getAllSocketData() {
 module.exports = {
   initializeSocket,
   sendToUid,
+  sendToTenantUid,
   sendToSocket,
   sendToAll,
   getConnectedUsers,

@@ -10,6 +10,7 @@ const { sign } = require("jsonwebtoken");
 const validateUser = require("../middlewares/user.js");
 const { checkPlan } = require("../middlewares/plan.js");
 const logger = require("../utils/logger.js");
+const { tenantFilter, tenantInsert } = require("../utils/tenantScope.js");
 
 // adding campaign
 router.post("/add_new", validateUser, checkPlan, async (req, res) => {
@@ -34,9 +35,11 @@ router.post("/add_new", validateUser, checkPlan, async (req, res) => {
       return res.json({ msg: "We could not find your meta API keys" });
     }
 
+    // isolamento multi-tenant
+    const tBc = tenantFilter(req);
     const getPhonebookContacts = await query(
-      `SELECT * FROM contact where phonebook_id = ? AND uid = ?`,
-      [id, req.decode.uid],
+      `SELECT * FROM contact where phonebook_id = ? AND uid = ?${tBc.sql}`,
+      [id, req.decode.uid, ...tBc.params],
     );
 
     if (getPhonebookContacts.length < 1) {
@@ -254,9 +257,11 @@ router.post(
       }
 
       // ── Get phonebook ─────────────────────────────────────
+      // isolamento multi-tenant
+      const tBc2 = tenantFilter(req);
       const phonebooks = await query(
-        "SELECT * FROM phonebook WHERE id = ? AND uid = ?",
-        [phonebook_id, req.decode.uid],
+        "SELECT * FROM phonebook WHERE id = ? AND uid = ?" + tBc2.sql,
+        [phonebook_id, req.decode.uid, ...tBc2.params],
       );
       if (!phonebooks || phonebooks.length === 0) {
         return res.json({ success: false, msg: "Phonebook not found" });
@@ -274,8 +279,9 @@ router.post(
           MAX(var5)  as var5
         FROM contact
         WHERE phonebook_id = ? AND uid = ?
+        ${tBc2.sql}
         GROUP BY mobile`,
-        [phonebook_id, req.decode.uid],
+        [phonebook_id, req.decode.uid, ...tBc2.params],
       );
       if (!contacts || contacts.length === 0) {
         return res.json({

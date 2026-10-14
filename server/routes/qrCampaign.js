@@ -4,6 +4,7 @@ const { query } = require("../database/dbpromise.js");
 const validateUser = require("../middlewares/user.js");
 const { checkPlan } = require("../middlewares/plan.js");
 const logger = require("../utils/logger.js");
+const { tenantFilter, tenantInsert } = require("../utils/tenantScope.js");
 const { getSession } = require("../helper/addon/qr/index.js");
 
 // ── Tiny inline CSV serializer (replaces json2csv, no extra deps) ──
@@ -62,9 +63,11 @@ router.post("/create", validateUser, checkPlan, async (req, res) => {
     }
 
     // Count contacts in phonebook
+    // isolamento multi-tenant
+    const tQr = tenantFilter(req);
     const [countResult] = await query(
-      `SELECT COUNT(*) as total FROM contact WHERE uid = ? AND phonebook_id = ?`,
-      [req.decode.uid, phonebook_id],
+      `SELECT COUNT(*) as total FROM contact WHERE uid = ? AND phonebook_id = ?${tQr.sql}`,
+      [req.decode.uid, phonebook_id, ...tQr.params],
     );
     const total = countResult?.total || 0;
 
@@ -336,15 +339,18 @@ router.get("/download_report/:campaign_id", validateUser, async (req, res) => {
 // ── Get Phonebooks for Campaign (with contact count) ─────────────
 router.get("/get_phonebooks", validateUser, async (req, res) => {
   try {
-    let data = await query(`SELECT * FROM phonebook WHERE uid = ?`, [
-      req.decode.uid,
-    ]);
+    // isolamento multi-tenant
+    const tGpb = tenantFilter(req);
+    let data = await query(
+      `SELECT * FROM phonebook WHERE uid = ?${tGpb.sql}`,
+      [req.decode.uid, ...tGpb.params],
+    );
 
     data = await Promise.all(
       data.map(async (x) => {
         const [result] = await query(
-          `SELECT COUNT(*) AS count FROM contact WHERE phonebook_id = ? AND uid = ?`,
-          [x.id, req.decode.uid],
+          `SELECT COUNT(*) AS count FROM contact WHERE phonebook_id = ? AND uid = ?${tGpb.sql}`,
+          [x.id, req.decode.uid, ...tGpb.params],
         );
         return { ...x, contactCount: result.count };
       }),

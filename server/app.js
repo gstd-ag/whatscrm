@@ -171,6 +171,7 @@ app.use(fileUpload());
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use("/api/user", require("./routes/user"));
+app.use("/api", require("./middlewares/tenant").resolveTenant);
 app.use("/api/web", require("./routes/web"));
 app.use("/api/admin", require("./routes/admin"));
 app.use("/api/phonebook", require("./routes/phonebook"));

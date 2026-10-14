@@ -37,6 +37,10 @@ const ffmpeg = require("fluent-ffmpeg");
 const ffmpegStatic = require("ffmpeg-static");
 const fs = require("fs");
 const logger = require("../utils/logger.js");
+const {
+  tenantFilter,
+  tenantInsert,
+} = require("../utils/tenantScope.js");
 
 // adding agent
 router.post("/add_agent", validateUser, checkPlan, async (req, res) => {
@@ -53,10 +57,12 @@ router.post("/add_agent", validateUser, checkPlan, async (req, res) => {
       return res.json({ msg: "Please enter a valid email" });
     }
 
-    // check if already
-    const getUser = await query(`SELECT * FROM agents WHERE email = ?`, [
-      email?.toLowerCase(),
-    ]);
+    // check if already (isolamento multi-tenant: email duplicado por tenant)
+    const tNew = tenantFilter(req);
+    const getUser = await query(
+      `SELECT * FROM agents WHERE email = ?${tNew.sql}`,
+      [email?.toLowerCase(), ...tNew.params],
+    );
 
     if (getUser.length > 0) {
       return res.json({
@@ -68,9 +74,11 @@ router.post("/add_agent", validateUser, checkPlan, async (req, res) => {
 
     const uid = randomstring.generate();
 
+    // isolamento multi-tenant (INSERT com tenant_id)
+    const insAgent = tenantInsert(req);
     await query(
-      `INSERT INTO agents (owner_uid, uid, email, password, name, mobile, comments) VALUES (
-            ?,?,?,?,?,?,?
+      `INSERT INTO agents (owner_uid, uid, email, password, name, mobile, comments${insAgent.cols}) VALUES (
+            ?,?,?,?,?,?,?${insAgent.vals}
         )`,
       [
         req.decode.uid,
@@ -80,6 +88,7 @@ router.post("/add_agent", validateUser, checkPlan, async (req, res) => {
         name,
         mobile,
         comments,
+        ...insAgent.params,
       ],
     );
 
@@ -96,9 +105,12 @@ router.post("/add_agent", validateUser, checkPlan, async (req, res) => {
 // get all agents
 router.get("/get_my_agents", validateUser, async (req, res) => {
   try {
-    const data = await query(`SELECT * FROM agents WHERE owner_uid = ?`, [
-      req.decode.uid,
-    ]);
+    // isolamento multi-tenant
+    const tMy = tenantFilter(req);
+    const data = await query(
+      `SELECT * FROM agents WHERE owner_uid = ?${tMy.sql}`,
+      [req.decode.uid, ...tMy.params],
+    );
 
     res.json({ data, success: true });
   } catch (err) {
@@ -112,10 +124,12 @@ router.post("/change_status_mask", validateUser, async (req, res) => {
   try {
     const { agentUid, activeness } = req.body;
 
-    await query(`UPDATE agents SET mask_number = ? WHERE uid = ?`, [
-      activeness ? 1 : 0,
-      agentUid,
-    ]);
+    // isolamento multi-tenant
+    const tMask = tenantFilter(req);
+    await query(
+      `UPDATE agents SET mask_number = ? WHERE uid = ?${tMask.sql}`,
+      [activeness ? 1 : 0, agentUid, ...tMask.params],
+    );
 
     res.json({
       success: true,
@@ -132,10 +146,12 @@ router.post("/change_status_allow_send", validateUser, async (req, res) => {
   try {
     const { agentUid, activeness } = req.body;
 
-    await query(`UPDATE agents SET allow_send_new_qr = ? WHERE uid = ?`, [
-      activeness ? 1 : 0,
-      agentUid,
-    ]);
+    // isolamento multi-tenant
+    const tSend = tenantFilter(req);
+    await query(
+      `UPDATE agents SET allow_send_new_qr = ? WHERE uid = ?${tSend.sql}`,
+      [activeness ? 1 : 0, agentUid, ...tSend.params],
+    );
 
     res.json({
       success: true,
@@ -152,9 +168,12 @@ router.post("/change_agent_activeness", validateUser, async (req, res) => {
   try {
     const { agentUid, activeness } = req.body;
 
-    await query(`UPDATE agents SET is_active = ? WHERE uid = ?`, [
+    // isolamento multi-tenant
+    const tAct = tenantFilter(req);
+    await query(`UPDATE agents SET is_active = ? WHERE uid = ?${tAct.sql}`, [
       activeness ? 1 : 0,
       agentUid,
+      ...tAct.params,
     ]);
 
     res.json({
@@ -171,10 +190,12 @@ router.post("/change_agent_activeness", validateUser, async (req, res) => {
 router.post("/del_agent", validateUser, async (req, res) => {
   try {
     const { uid } = req.body;
-    await query(`DELETE FROM agents WHERE uid = ? AND owner_uid = ?`, [
-      uid,
-      req.decode.uid,
-    ]);
+    // isolamento multi-tenant
+    const tDelAg = tenantFilter(req);
+    await query(
+      `DELETE FROM agents WHERE uid = ? AND owner_uid = ?${tDelAg.sql}`,
+      [uid, req.decode.uid, ...tDelAg.params],
+    );
 
     res.json({
       success: true,
@@ -191,6 +212,8 @@ router.post("/get_agent_chats_owner", validateUser, async (req, res) => {
   try {
     const { uid } = req.body;
 
+    // isolamento multi-tenant (JOIN com alias das duas tabelas)
+    const tOwnerChats = tenantFilter(req, "agent_chats");
     const data = await query(
       `
         SELECT * 
@@ -198,9 +221,9 @@ router.post("/get_agent_chats_owner", validateUser, async (req, res) => {
         JOIN chats  
         ON agent_chats.chat_id = chats.chat_id 
         WHERE agent_chats.owner_uid = ? 
-        AND chats.uid = ?        
+        AND chats.uid = ?${tOwnerChats.sql}
         `,
-      [req.decode.uid, req.decode.uid, uid],
+      [req.decode.uid, req.decode.uid, uid, ...tOwnerChats.params],
     );
 
     res.json({ data, success: true });
@@ -217,15 +240,18 @@ router.post("/get_assigned_chat_agent", validateUser, async (req, res) => {
 
     let data;
 
+    // isolamento multi-tenant (fila de atendimento)
+    const tAssigned = tenantFilter(req);
     data = await query(
-      `SELECT * FROM agent_chats WHERE chat_id = ? AND owner_uid = ?`,
-      [chatId, req.decode.uid],
+      `SELECT * FROM agent_chats WHERE chat_id = ? AND owner_uid = ?${tAssigned.sql}`,
+      [chatId, req.decode.uid, ...tAssigned.params],
     );
 
     if (data.length > 0) {
-      const agent = await query(`SELECT * FROM agents WHERE uid = ?`, [
-        data[0]?.uid,
-      ]);
+      const agent = await query(
+        `SELECT * FROM agents WHERE uid = ?${tAssigned.sql}`,
+        [data[0]?.uid, ...tAssigned.params],
+      );
       data[0] = {
         ...agent[0],
         chat_id: data[0].chat_id,
@@ -249,20 +275,23 @@ router.post("/update_agent_in_chat", validateUser, async (req, res) => {
   try {
     const { assignAgent, chatId, agentUid } = req.body;
 
+    // isolamento multi-tenant (fila de atendimento)
+    const tUpdChat = tenantFilter(req);
+    const insAch = tenantInsert(req);
     if (assignAgent?.email) {
       await query(
-        `DELETE FROM agent_chats WHERE owner_uid = ? AND chat_id = ?`,
-        [req.decode?.uid, chatId],
+        `DELETE FROM agent_chats WHERE owner_uid = ? AND chat_id = ?${tUpdChat.sql}`,
+        [req.decode?.uid, chatId, ...tUpdChat.params],
       );
 
       await query(
-        `INSERT INTO agent_chats (owner_uid, uid, chat_id) VALUES (?,?,?)`,
-        [req.decode.uid, assignAgent?.uid, chatId],
+        `INSERT INTO agent_chats (owner_uid, uid, chat_id${insAch.cols}) VALUES (?,?,?${insAch.vals})`,
+        [req.decode.uid, assignAgent?.uid, chatId, ...insAch.params],
       );
     } else {
       await query(
-        `DELETE FROM agent_chats WHERE owner_uid = ? AND chat_id = ?`,
-        [req.decode?.uid, chatId],
+        `DELETE FROM agent_chats WHERE owner_uid = ? AND chat_id = ?${tUpdChat.sql}`,
+        [req.decode?.uid, chatId, ...tUpdChat.params],
       );
     }
 
@@ -280,9 +309,11 @@ router.post("/del_assign_chat_by_owner", validateUser, async (req, res) => {
 
     logger.log(req.body);
 
+    // isolamento multi-tenant
+    const tDelAch = tenantFilter(req);
     await query(
-      `DELETE FROM agent_chats WHERE owner_uid = ? AND uid = ? AND chat_id = ?`,
-      [req.decode.uid, uid, chat_id],
+      `DELETE FROM agent_chats WHERE owner_uid = ? AND uid = ? AND chat_id = ?${tDelAch.sql}`,
+      [req.decode.uid, uid, chat_id, ...tDelAch.params],
     );
 
     res.json({ msg: "Chat was removed from the agent", success: true });
@@ -303,9 +334,12 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const agentFind = await query(`SELECT * FROM agents WHERE email = ?`, [
-      email,
-    ]);
+    // isolamento multi-tenant (login do agente no tenant correto)
+    const tLoginAg = tenantFilter(req);
+    const agentFind = await query(
+      `SELECT * FROM agents WHERE email = ?${tLoginAg.sql}`,
+      [email, ...tLoginAg.params],
+    );
     if (agentFind.length < 1) {
       return res.json({ msg: "Invalid credentials" });
     }
@@ -349,9 +383,10 @@ router.post("/login", async (req, res) => {
     existingLogs.dateTracking[currentDate].logins++;
     existingLogs.dateTracking[currentDate].lastLogin = loginTime;
 
-    await query(`UPDATE agents SET logs = ? WHERE uid = ?`, [
+    await query(`UPDATE agents SET logs = ? WHERE uid = ?${tLoginAg.sql}`, [
       JSON.stringify(existingLogs),
       agentFind[0].uid,
+      ...tLoginAg.params,
     ]);
 
     res.json({
@@ -377,8 +412,12 @@ router.get("/logout", validateAgent, async (req, res) => {
       });
     }
 
-    // Get agent data
-    const agentFind = await query(`SELECT * FROM agents WHERE uid = ?`, [uid]);
+    // Get agent data (isolamento multi-tenant)
+    const tLogout = tenantFilter(req);
+    const agentFind = await query(
+      `SELECT * FROM agents WHERE uid = ?${tLogout.sql}`,
+      [uid, ...tLogout.params],
+    );
     if (agentFind.length < 1) {
       return res.json({ success: false, msg: "Agent not found" });
     }
@@ -409,10 +448,11 @@ router.get("/logout", validateAgent, async (req, res) => {
         new Date().toISOString();
     }
 
-    // Update database
-    await query(`UPDATE agents SET logs = ? WHERE uid = ?`, [
+    // Update database (isolamento multi-tenant)
+    await query(`UPDATE agents SET logs = ? WHERE uid = ?${tLogout.sql}`, [
       JSON.stringify(existingLogs),
       uid,
+      ...tLogout.params,
     ]);
 
     res.json({
@@ -429,9 +469,12 @@ router.get("/logout", validateAgent, async (req, res) => {
 // get me agent
 router.get("/get_me", validateAgent, async (req, res) => {
   try {
-    const data = await query(`SELECT * FROM agents WHERE uid = ?`, [
-      req.decode.uid,
-    ]);
+    // isolamento multi-tenant
+    const tMeAg = tenantFilter(req);
+    const data = await query(
+      `SELECT * FROM agents WHERE uid = ?${tMeAg.sql}`,
+      [req.decode.uid, ...tMeAg.params],
+    );
     res.json({ data: data[0], success: true });
   } catch (err) {
     res.json({ success: false, msg: "something went wrong", err });
@@ -444,9 +487,11 @@ router.get("/get_my_assigned_chats", validateAgent, async (req, res) => {
   try {
     let data = [];
 
+    // isolamento multi-tenant (fila de chats do agente)
+    const tMyChats = tenantFilter(req);
     const getMyChatsId = await query(
-      `SELECT * FROM agent_chats WHERE uid = ?`,
-      [req.decode.uid],
+      `SELECT * FROM agent_chats WHERE uid = ?${tMyChats.sql}`,
+      [req.decode.uid, ...tMyChats.params],
     );
 
     logger.log({
@@ -463,19 +508,20 @@ router.get("/get_my_assigned_chats", validateAgent, async (req, res) => {
       chatIds,
     });
 
-    // Using IN clause to match against multiple IDs
-    data = await query(`SELECT * FROM chats WHERE chat_id IN (?) AND uid = ?`, [
-      chatIds,
-      req.owner?.uid,
-    ]);
+    // Using IN clause to match against multiple IDs (isolamento multi-tenant)
+    data = await query(
+      `SELECT * FROM chats WHERE chat_id IN (?) AND uid = ?${tMyChats.sql}`,
+      [chatIds, req.owner?.uid, ...tMyChats.params],
+    );
 
     logger.log({
       data,
     });
 
-    const getContacts = await query(`SELECT * FROM contact WHERE uid = ?`, [
-      req.owner.uid,
-    ]);
+    const getContacts = await query(
+      `SELECT * FROM contact WHERE uid = ?${tMyChats.sql}`,
+      [req.owner.uid, ...tMyChats.params],
+    );
 
     if (data.length > 0 && getContacts.length > 0) {
       data = mergeArrays(getContacts, data);
@@ -875,10 +921,11 @@ router.post("/convert_audio", validateAgent, async (req, res) => {
       });
     }
 
-    // Update database with new URL
+    // Update database with new URL (isolamento multi-tenant)
+    const tAudioAg = tenantFilter(req);
     const [getMsg] = await query(
-      `SELECT * FROM beta_conversation WHERE id = ?`,
-      [msgId],
+      `SELECT * FROM beta_conversation WHERE id = ?${tAudioAg.sql}`,
+      [msgId, ...tAudioAg.params],
     );
 
     if (getMsg) {
@@ -894,10 +941,10 @@ router.post("/convert_audio", validateAgent, async (req, res) => {
         },
       };
 
-      await query(`UPDATE beta_conversation SET msgContext = ? WHERE id = ?`, [
-        JSON.stringify(updatedMsgCon),
-        msgId,
-      ]);
+      await query(
+        `UPDATE beta_conversation SET msgContext = ? WHERE id = ?${tAudioAg.sql}`,
+        [JSON.stringify(updatedMsgCon), msgId, ...tAudioAg.params],
+      );
 
       logger.log("Database updated with new MP3 URL");
     }
@@ -1084,9 +1131,12 @@ router.post("/send_image", validateAgent, checkPlan, async (req, res) => {
 // get my tasks
 router.get("/get_my_task", validateAgent, async (req, res) => {
   try {
-    const data = await query(`SELECT * FROM agent_task WHERE uid = ?`, [
-      req.decode.uid,
-    ]);
+    // isolamento multi-tenant
+    const tMyTask = tenantFilter(req);
+    const data = await query(
+      `SELECT * FROM agent_task WHERE uid = ?${tMyTask.sql}`,
+      [req.decode.uid, ...tMyTask.params],
+    );
 
     res.json({ data, success: true });
   } catch (err) {
@@ -1104,9 +1154,11 @@ router.post("/mark_task_complete", validateAgent, async (req, res) => {
       return res.json({ msg: "Please type your comments." });
     }
 
+    // isolamento multi-tenant
+    const tMark = tenantFilter(req);
     await query(
-      `UPDATE agent_task SET status = ?, agent_comments = ? WHERE id = ?`,
-      ["COMPLETED", comment, id],
+      `UPDATE agent_task SET status = ?, agent_comments = ? WHERE id = ?${tMark.sql}`,
+      ["COMPLETED", comment, id, ...tMark.params],
     );
 
     res.json({ msg: "Task updated", success: true });
@@ -1125,10 +1177,12 @@ router.post("/change_chat_ticket_status", validateAgent, async (req, res) => {
       return res.json({ msg: "invalid request" });
     }
 
-    await query(`UPDATE chats SET chat_status = ? WHERE chat_id = ?`, [
-      status,
-      chatId,
-    ]);
+    // isolamento multi-tenant
+    const tChatStatus = tenantFilter(req);
+    await query(
+      `UPDATE chats SET chat_status = ? WHERE chat_id = ?${tChatStatus.sql}`,
+      [status, chatId, ...tChatStatus.params],
+    );
 
     res.json({
       success: true,
@@ -1162,10 +1216,12 @@ router.post("/save_contact_agent", validateUser, async (req, res) => {
   try {
     const { agentUid, activeness } = req.body;
 
-    await query(`UPDATE agents SET allow_save_contact = ? WHERE uid = ?`, [
-      activeness ? 1 : 0,
-      agentUid,
-    ]);
+    // isolamento multi-tenant
+    const tSaveAg = tenantFilter(req);
+    await query(
+      `UPDATE agents SET allow_save_contact = ? WHERE uid = ?${tSaveAg.sql}`,
+      [activeness ? 1 : 0, agentUid, ...tSaveAg.params],
+    );
 
     res.json({
       success: true,
@@ -1211,10 +1267,12 @@ router.post("/update_fcm_token", validateAgent, async (req, res) => {
       other: { ...existingOther, ...other },
     };
 
-    // 4️⃣ Save final data
-    await query(`UPDATE agents SET fcm_data = ? WHERE uid = ?`, [
+    // 4️⃣ Save final data (isolamento multi-tenant)
+    const tFcm = tenantFilter(req);
+    await query(`UPDATE agents SET fcm_data = ? WHERE uid = ?${tFcm.sql}`, [
       JSON.stringify(newUpdated),
       req.decode.uid,
+      ...tFcm.params,
     ]);
 
     res.json({ success: true, fcm_data: newUpdated });
@@ -1236,25 +1294,33 @@ router.get("/get_phonebook_for_inbox", validateAgent, async (req, res) => {
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const searchTerm = `%${search}%`;
 
-    // Agent uses owner's contacts
+    // Agent uses owner's contacts (isolamento multi-tenant)
     const ownerUid = req.owner?.uid;
     if (!ownerUid) {
       return res.json({ success: false, msg: "Owner not found" });
     }
 
+    const tPbAg = tenantFilter(req);
     const [countResult] = await query(
       `SELECT COUNT(*) as total FROM contact 
-       WHERE uid = ? AND (name LIKE ? OR mobile LIKE ?)`,
-      [ownerUid, searchTerm, searchTerm],
+       WHERE uid = ? AND (name LIKE ? OR mobile LIKE ?)${tPbAg.sql}`,
+      [ownerUid, searchTerm, searchTerm, ...tPbAg.params],
     );
 
     const data = await query(
       `SELECT id, name, mobile, phonebook_name, var1, var2 
        FROM contact 
-       WHERE uid = ? AND (name LIKE ? OR mobile LIKE ?)
+       WHERE uid = ? AND (name LIKE ? OR mobile LIKE ?)${tPbAg.sql}
        ORDER BY name ASC
        LIMIT ? OFFSET ?`,
-      [ownerUid, searchTerm, searchTerm, parseInt(limit), offset],
+      [
+        ownerUid,
+        searchTerm,
+        searchTerm,
+        ...tPbAg.params,
+        parseInt(limit),
+        offset,
+      ],
     );
 
     res.json({
