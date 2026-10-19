@@ -48,6 +48,8 @@ services:
       - ./database/migrations/20261014_multi_tenant_core.sql:/docker-entrypoint-initdb.d/02-multitenant.sql:ro
       # Backfill legado + coluna tenant_id em chats/agent_chats (apos o 02)
       - ./database/migrations/20261014_backfill_legacy.sql:/docker-entrypoint-initdb.d/03-backfill.sql:ro
+      # Troca obrigatoria de senha do super admin (apos o 03)
+      - ./database/migrations/20261019_superadmin_force_password_change.sql:/docker-entrypoint-initdb.d/04-superadmin-password.sql:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s

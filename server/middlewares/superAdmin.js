@@ -37,19 +37,36 @@ const superAdminValidator = async (req, res, next) => {
 
       // Somente super admins autenticados passam
       let isSuper = false;
+      let adminRow = null;
       try {
         const rows = await query(
-          `SELECT id, email, name, role FROM super_admins
+          `SELECT id, email, name, role, must_change_password FROM super_admins
             WHERE email = ? LIMIT 1`,
           [decode.email],
         );
         if (rows.length > 0) {
           isSuper = true;
-          req.superAdmin = rows[0];
+          adminRow = rows[0];
         }
       } catch (dbErr) {
-        // Tabela ainda nao criada (migracao pendente) -> nega com msg clara
-        logger.log("[superAdminValidator] tabela super_admins ausente:", dbErr.message);
+        // Coluna nova ainda nao migrada? Cai no SELECT legado (tolerancia a falhas)
+        try {
+          const rows = await query(
+            `SELECT id, email, name, role FROM super_admins
+              WHERE email = ? LIMIT 1`,
+            [decode.email],
+          );
+          if (rows.length > 0) {
+            isSuper = true;
+            adminRow = rows[0];
+          }
+        } catch (dbErr2) {
+          // Tabela ainda nao criada (migracao pendente) -> nega com msg clara
+          logger.log(
+            "[superAdminValidator] tabela super_admins ausente:",
+            dbErr2.message,
+          );
+        }
       }
 
       if (!isSuper) {
@@ -60,6 +77,24 @@ const superAdminValidator = async (req, res, next) => {
         });
       }
 
+      // ── Gate: troca obrigatoria de senha no primeiro login ──────────
+      // Enquanto `must_change_password = 1`, TODAS as rotas super admin
+      // ficam bloqueadas, exceto o proprio endpoint de troca de senha.
+      const rawPath = (req.originalUrl || req.url || "").split("?")[0];
+      const isPasswordChangeRoute = rawPath.endsWith(
+        "/superadmin/change-password",
+      );
+
+      if (Number(adminRow.must_change_password) === 1 && !isPasswordChangeRoute) {
+        return res.json({
+          success: false,
+          must_change_password: true,
+          msg: "Troca de senha obrigatoria no primeiro login",
+          logout: false,
+        });
+      }
+
+      req.superAdmin = adminRow;
       req.decode = decode;
       req.isSuperAdmin = true;
       req.tenantId = null; // super admin opera globalmente

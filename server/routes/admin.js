@@ -2064,12 +2064,84 @@ router.post("/superadmin/login", async (req, res) => {
       logger.log(e);
     }
 
-    res.json({ success: true, token, role: "super_admin", name: sa.name });
+    res.json({
+      success: true,
+      token,
+      role: "super_admin",
+      name: sa.name,
+      must_change_password: Number(sa.must_change_password) === 1,
+    });
   } catch (err) {
     logger.log(err);
     res.json({ success: false, msg: "something went wrong" });
   }
 });
+
+// Trocar a senha do Super Admin (usado no primeiro login e tambem depois)
+// Fica LIBERADO mesmo com must_change_password = 1.
+router.post(
+  "/superadmin/change-password",
+  superAdminValidator,
+  async (req, res) => {
+    try {
+      const { current_password, new_password } = req.body;
+
+      if (!current_password || !new_password) {
+        return res.json({
+          success: false,
+          msg: "Informe a senha atual e a nova senha",
+        });
+      }
+
+      if (String(new_password).length < 8) {
+        return res.json({
+          success: false,
+          msg: "A nova senha deve ter ao menos 8 caracteres",
+        });
+      }
+
+      if (String(new_password) === String(current_password)) {
+        return res.json({
+          success: false,
+          msg: "A nova senha deve ser diferente da senha atual",
+        });
+      }
+
+      const rows = await query(
+        `SELECT * FROM super_admins WHERE email = ? LIMIT 1`,
+        [req.decode.email],
+      );
+
+      if (!rows.length) {
+        return res.json({ success: false, msg: "Super admin nao encontrado" });
+      }
+
+      const sa = rows[0];
+
+      const compare = await bcrypt.compare(current_password, sa.password);
+      if (!compare) {
+        return res.json({ success: false, msg: "Senha atual incorreta" });
+      }
+
+      const hashpassword = await bcrypt.hash(new_password, 10);
+
+      await query(
+        `UPDATE super_admins
+            SET password = ?, must_change_password = 0
+          WHERE id = ?`,
+        [hashpassword, sa.id],
+      );
+
+      res.json({
+        success: true,
+        msg: "Senha alterada com sucesso",
+      });
+    } catch (err) {
+      logger.log(err);
+      res.json({ success: false, msg: "something went wrong" });
+    }
+  },
+);
 
 // Listar todos os tenants
 router.get("/superadmin/tenants", superAdminValidator, async (req, res) => {

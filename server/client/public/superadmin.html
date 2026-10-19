@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Portal do Administrador — WhatsCRM</title>
+    <meta name="robots" content="noindex,nofollow" />
+    <style>
+      :root {
+        --bg: #070b09;
+        --card: #111a15;
+        --card-2: #0d1512;
+        --input: #0c1310;
+        --border: #1e2b24;
+        --text: #e9f1ec;
+        --muted: #8a9791;
+        --green: #2ee06f;
+        --green-2: #22c55e;
+        --green-ink: #05150b;
+        --amber: #d9a441;
+        --danger: #ef4444;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        font-size: 14px;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        background-image: radial-gradient(
+          900px 420px at 50% -140px,
+          rgba(46, 224, 111, 0.14),
+          transparent 70%
+        );
+        background-repeat: no-repeat;
+      }
+      .center {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 18px;
+      }
+      .hidden { display: none !important; }
+
+      .card {
+        width: 100%;
+        max-width: 452px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        overflow: hidden;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+      }
+      .card-body { padding: 34px 34px 26px; }
+
+      .brand { text-align: center; }
+      .logo {
+        width: 66px;
+        height: 66px;
+        margin: 0 auto 18px;
+        border-radius: 19px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(160deg, rgba(46, 224, 111, 0.22), rgba(46, 224, 111, 0.07));
+        border: 1px solid rgba(46, 224, 111, 0.28);
+        box-shadow: 0 0 0 6px rgba(46, 224, 111, 0.05);
+      }
+      .logo svg { width: 30px; height: 30px; stroke: var(--green); }
+      h1 {
+        font-size: 25px;
+        line-height: 1.2;
+        font-weight: 700;
+        margin: 0 0 8px;
+        letter-spacing: -0.01em;
+      }
+      .sub { color: var(--muted); font-size: 14.5px; margin: 0; }
+      .divider {
+        height: 1px;
+        background: var(--border);
+        margin: 26px -34px 22px;
+      }
+
+      .field { position: relative; margin-bottom: 14px; }
+      .field .ico {
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 19px;
+        height: 19px;
+        stroke: var(--muted);
+        pointer-events: none;
+      }
+      .field input {
+        width: 100%;
+        height: 52px;
+        padding: 0 46px 0 46px;
+        border-radius: 13px;
+        border: 1px solid var(--border);
+        background: var(--input);
+        color: var(--text);
+        font-size: 15px;
+        font-family: inherit;
+        transition: border-color .15s, box-shadow .15s;
+      }
+      .field input::placeholder { color: #5f6b65; }
+      .field input:focus {
+        outline: none;
+        border-color: rgba(46, 224, 111, 0.55);
+        box-shadow: 0 0 0 3px rgba(46, 224, 111, 0.12);
+      }
+      .field .eye {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        border: 0;
+        cursor: pointer;
+        border-radius: 8px;
+      }
+      .field .eye svg { width: 19px; height: 19px; stroke: var(--muted); }
+      .field .eye:hover svg { stroke: var(--text); }
+
+      .forgot {
+        display: block;
+        text-align: right;
+        color: var(--green);
+        font-size: 13.5px;
+        font-weight: 600;
+        text-decoration: none;
+        margin: 4px 2px 20px;
+        cursor: pointer;
+        background: none;
+        border: 0;
+        font-family: inherit;
+        width: 100%;
+        padding: 0;
+      }
+      .forgot:hover { text-decoration: underline; }
+
+      .btn {
+        width: 100%;
+        height: 54px;
+        border: 0;
+        border-radius: 13px;
+        background: linear-gradient(180deg, var(--green), var(--green-2));
+        color: var(--green-ink);
+        font-size: 16px;
+        font-weight: 700;
+        font-family: inherit;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        box-shadow: 0 10px 26px rgba(46, 224, 111, 0.22);
+        transition: filter .15s, transform .05s;
+      }
+      .btn:hover { filter: brightness(1.06); }
+      .btn:active { transform: translateY(1px); }
+      .btn:disabled { opacity: .6; cursor: not-allowed; filter: none; }
+      .btn svg { width: 18px; height: 18px; stroke: var(--green-ink); }
+
+      .warn {
+        display: flex;
+        gap: 11px;
+        align-items: flex-start;
+        padding: 16px 34px;
+        background: var(--card-2);
+        border-top: 1px solid var(--border);
+      }
+      .warn svg { width: 17px; height: 17px; stroke: var(--amber); flex: 0 0 auto; margin-top: 1px; }
+      .warn p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.55; }
+
+      .msg {
+        margin-top: 16px;
+        padding: 11px 13px;
+        border-radius: 10px;
+        font-size: 13px;
+        display: none;
+        line-height: 1.45;
+      }
+      .msg.show { display: block; }
+      .msg.err { background: rgba(239, 68, 68, .12); color: #fca5a5; border: 1px solid rgba(239, 68, 68, .32); }
+      .msg.ok { background: rgba(46, 224, 111, .12); color: #86efac; border: 1px solid rgba(46, 224, 111, .32); }
+
+      .copyright {
+        text-align: center;
+        color: #5d6a63;
+        font-size: 12.5px;
+        padding: 0 18px 26px;
+      }
+
+      /* ─────────── PAINEL ─────────── */
+      .panel {
+        width: 100%;
+        max-width: 1060px;
+        margin: 0 auto;
+        padding: 26px 0 40px;
+      }
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+      .topbar h1 { font-size: 21px; margin: 0 0 3px; }
+      .topbar .sub { font-size: 13px; }
+      .ghost {
+        width: auto;
+        height: 38px;
+        padding: 0 14px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+      }
+      .ghost:hover { border-color: rgba(46, 224, 111, .5); color: var(--green); }
+
+      .stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+      .stat {
+        flex: 1; min-width: 150px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px;
+      }
+      .stat .n { font-size: 26px; font-weight: 700; }
+      .stat .l { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+      .block {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 16px;
+      }
+      .block h2 { font-size: 15px; font-weight: 600; margin: 0 0 14px; }
+
+      table { width: 100%; border-collapse: collapse; }
+      th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 13px; }
+      th { color: var(--muted); font-weight: 500; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; }
+      tbody tr:last-child td { border-bottom: 0; }
+      .badge { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+      .b-active { background: rgba(46,224,111,.16); color: #86efac; }
+      .b-trial { background: rgba(217,164,65,.16); color: #e6c684; }
+      .b-suspended { background: rgba(239,68,68,.16); color: #fca5a5; }
+      .b-expired { background: rgba(138,151,145,.16); color: #cbd5e1; }
+      .code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); }
+
+      .row { display: flex; gap: 12px; flex-wrap: wrap; }
+      .row > div { flex: 1; min-width: 180px; }
+      label { display: block; margin: 0 0 6px; font-size: 12.5px; color: var(--muted); }
+      .row input, .row select {
+        width: 100%;
+        height: 44px;
+        padding: 0 13px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--input);
+        color: var(--text);
+        font-size: 14px;
+        font-family: inherit;
+      }
+      .row input:focus, .row select:focus {
+        outline: none;
+        border-color: rgba(46, 224, 111, .55);
+        box-shadow: 0 0 0 3px rgba(46, 224, 111, .12);
+      }
+      .row { margin-bottom: 14px; }
+      .block .btn { max-width: 230px; height: 46px; font-size: 14.5px; }
+      .hint { color: var(--muted); font-size: 12.5px; margin: -4px 0 14px; }
+
+      @media (max-width: 560px) {
+        .card-body { padding: 28px 22px 22px; }
+        .divider { margin: 22px -22px 18px; }
+        .warn { padding: 15px 22px; }
+        h1 { font-size: 22px; }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ═══════════ LOGIN ═══════════ -->
+    <div id="view-login" class="center">
+      <div class="card">
+        <div class="card-body">
+          <div class="brand">
+            <div class="logo">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+            </div>
+            <h1>Portal do Administrador</h1>
+            <p class="sub">Faça login para acessar o painel</p>
+          </div>
+
+          <div class="divider"></div>
+
+          <form id="form-login">
+            <div class="field">
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="3" />
+                <path d="m3 6.5 9 6 9-6" />
+              </svg>
+              <input id="email" type="email" autocomplete="username" placeholder="gstd.digital@gmail.com" required />
+            </div>
+
+            <div class="field">
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="10.5" width="16" height="10.5" rx="2.5" />
+                <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+              </svg>
+              <input id="password" type="password" autocomplete="current-password" placeholder="admin123" required />
+              <button type="button" class="eye" id="toggle-pass" aria-label="Mostrar senha">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+            </div>
+
+            <button type="button" class="forgot" id="btn-forgot">Esqueceu a senha?</button>
+
+            <button type="submit" class="btn" id="btn-login">
+              Entrar como Admin
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h13" /><path d="m12.5 5.5 6.5 6.5-6.5 6.5" />
+              </svg>
+            </button>
+          </form>
+
+          <div id="login-msg" class="msg"></div>
+        </div>
+
+        <div class="warn">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="9.5" r="5.5" />
+            <path d="M12 15v6" /><path d="M9.6 18h4.8" />
+          </svg>
+          <p>Esta área é restrita apenas a administradores autorizados.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ TROCA DE SENHA ═══════════ -->
+    <div id="view-change" class="center hidden">
+      <div class="card">
+        <div class="card-body">
+          <div class="brand">
+            <div class="logo">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="10.5" width="16" height="10.5" rx="2.5" />
+                <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+              </svg>
+            </div>
+            <h1>Troca de senha obrigatória</h1>
+            <p class="sub">Este é o primeiro login. Defina uma nova senha para continuar.</p>
+          </div>
+
+          <div class="divider"></div>
+
+          <form id="form-change">
+            <div class="field">
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="10.5" width="16" height="10.5" rx="2.5" />
+                <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+              </svg>
+              <input id="cur" type="password" autocomplete="current-password" placeholder="Senha atual (temporária)" required />
+            </div>
+            <div class="field">
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="10.5" width="16" height="10.5" rx="2.5" />
+                <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+              </svg>
+              <input id="new1" type="password" autocomplete="new-password" minlength="8" placeholder="Nova senha (mín. 8 caracteres)" required />
+            </div>
+            <div class="field">
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="10.5" width="16" height="10.5" rx="2.5" />
+                <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+              </svg>
+              <input id="new2" type="password" autocomplete="new-password" minlength="8" placeholder="Confirmar nova senha" required />
+            </div>
+            <button type="submit" class="btn" id="btn-change" style="margin-top:20px">
+              Salvar nova senha
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h13" /><path d="m12.5 5.5 6.5 6.5-6.5 6.5" />
+              </svg>
+            </button>
+          </form>
+
+          <div id="change-msg" class="msg"></div>
+        </div>
+
+        <div class="warn">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="9.5" r="5.5" />
+            <path d="M12 15v6" /><path d="M9.6 18h4.8" />
+          </svg>
+          <p>Esta área é restrita apenas a administradores autorizados.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ PAINEL ═══════════ -->
+    <div id="view-panel" class="hidden">
+      <div class="panel">
+        <div class="topbar">
+          <div>
+            <h1>Portal do Administrador</h1>
+            <p class="sub"><span id="whoami"></span> · <span id="platform"></span></p>
+          </div>
+          <div style="display:flex;gap:10px">
+            <button class="ghost" id="btn-reload">Atualizar</button>
+            <button class="ghost" id="btn-logout">Sair</button>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><div class="n" id="s-tenants">–</div><div class="l">Tenants</div></div>
+          <div class="stat"><div class="n" id="s-active">–</div><div class="l">Tenants ativos</div></div>
+          <div class="stat"><div class="n" id="s-users">–</div><div class="l">Usuários vinculados</div></div>
+        </div>
+
+        <div class="block">
+          <h2>Clientes (tenants)</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th><th>Nome</th><th>Slug</th><th>Status</th>
+                <th>Usuários</th><th>Instâncias</th><th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tenants-body">
+              <tr><td colspan="7" class="code">Carregando…</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="block">
+          <h2>Novo tenant</h2>
+          <form id="form-tenant">
+            <div class="row">
+              <div>
+                <label for="t-name">Nome *</label>
+                <input id="t-name" required placeholder="Clínica Exemplo" />
+              </div>
+              <div>
+                <label for="t-slug">Slug * (subdomínio)</label>
+                <input id="t-slug" required placeholder="clinica-exemplo" pattern="[a-z0-9-]+" />
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label for="t-domain">Domínio próprio (opcional)</label>
+                <input id="t-domain" placeholder="clinica.com.br" />
+              </div>
+              <div>
+                <label for="t-plan">Plan ID (opcional)</label>
+                <input id="t-plan" type="number" placeholder="17" />
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label for="t-owner">E-mail do dono (já cadastrado em <span class="code">user</span>)</label>
+                <input id="t-owner" type="email" placeholder="dono@clinica.com.br" />
+              </div>
+            </div>
+            <button type="submit" class="btn" id="btn-tenant">Criar tenant</button>
+          </form>
+          <div id="tenant-msg" class="msg"></div>
+        </div>
+
+        <div class="block">
+          <h2>Vincular usuário a um tenant</h2>
+          <p class="hint">O usuário precisa existir na tabela <span class="code">user</span> (fazer signup antes).</p>
+          <form id="form-invite">
+            <div class="row">
+              <div>
+                <label for="i-tenant">Tenant ID *</label>
+                <input id="i-tenant" type="number" required />
+              </div>
+              <div>
+                <label for="i-email">E-mail *</label>
+                <input id="i-email" type="email" required />
+              </div>
+              <div>
+                <label for="i-role">Papel</label>
+                <select id="i-role">
+                  <option value="owner">owner</option>
+                  <option value="admin">admin</option>
+                  <option value="manager">manager</option>
+                  <option value="agent" selected>agent</option>
+                </select>
+              </div>
+            </div>
+            <button type="submit" class="btn" id="btn-invite">Vincular</button>
+          </form>
+          <div id="invite-msg" class="msg"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="copyright">© 2026 WhatsCRM Todos os direitos reservados.</div>
+
+    <script>
+      (function () {
+        "use strict";
+        var API = "/api/admin/superadmin";
+        var TOKEN_KEY = "whatscrm_superadmin_token";
+
+        var $ = function (id) { return document.getElementById(id); };
+
+        function getToken() { return localStorage.getItem(TOKEN_KEY) || ""; }
+        function setToken(t) {
+          if (t) localStorage.setItem(TOKEN_KEY, t);
+          else localStorage.removeItem(TOKEN_KEY);
+        }
+
+        function show(view) {
+          ["view-login", "view-change", "view-panel"].forEach(function (v) {
+            $(v).classList.toggle("hidden", v !== "view-" + view);
+          });
+        }
+
+        function msg(el, text, kind) {
+          var e = $(el);
+          if (!text) { e.className = "msg"; e.textContent = ""; return; }
+          e.className = "msg show " + (kind || "err");
+          e.textContent = text;
+        }
+
+        async function api(path, opts) {
+          opts = opts || {};
+          var headers = { "Content-Type": "application/json" };
+          if (getToken()) headers["Authorization"] = "Bearer " + getToken();
+          var res = await fetch(API + path, {
+            method: opts.method || "GET",
+            headers: headers,
+            body: opts.body ? JSON.stringify(opts.body) : undefined,
+          });
+          var data;
+          try { data = await res.json(); } catch (e) { data = { success: false, msg: "Resposta inválida do servidor" }; }
+          if (data && data.logout) { setToken(""); show("login"); }
+          return data;
+        }
+
+        /* ───────── mostrar/ocultar senha ───────── */
+        $("toggle-pass").addEventListener("click", function () {
+          var p = $("password");
+          p.type = p.type === "password" ? "text" : "password";
+        });
+
+        /* ───────── LOGIN ───────── */
+        $("form-login").addEventListener("submit", async function (ev) {
+          ev.preventDefault();
+          msg("login-msg", "");
+          var btn = $("btn-login");
+          btn.disabled = true;
+          try {
+            var data = await api("/login", {
+              method: "POST",
+              body: { email: $("email").value.trim(), password: $("password").value },
+            });
+            if (!data.success) { msg("login-msg", data.msg || "Falha no login"); return; }
+            setToken(data.token);
+            $("whoami").textContent = (data.name || "") + " <" + $("email").value.trim() + ">";
+            if (data.must_change_password) {
+              $("cur").value = $("password").value;
+              show("change");
+              msg("change-msg", "Defina uma nova senha para liberar o painel.", "ok");
+            } else {
+              show("panel");
+              loadAll();
+            }
+          } catch (e) {
+            msg("login-msg", "Erro de conexão: " + e.message);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+
+        $("btn-forgot").addEventListener("click", function () {
+          msg(
+            "login-msg",
+            "A recuperação do super admin é feita pelo operador da plataforma: " +
+              "rode scripts/create-super-admin.js no servidor para redefinir a senha.",
+            "ok",
+          );
+        });
+
+        /* ───────── TROCA DE SENHA ───────── */
+        $("form-change").addEventListener("submit", async function (ev) {
+          ev.preventDefault();
+          msg("change-msg", "");
+          if ($("new1").value !== $("new2").value) {
+            msg("change-msg", "As duas senhas novas não conferem");
+            return;
+          }
+          var btn = $("btn-change");
+          btn.disabled = true;
+          try {
+            var data = await api("/change-password", {
+              method: "POST",
+              body: { current_password: $("cur").value, new_password: $("new1").value },
+            });
+            if (!data.success) { msg("change-msg", data.msg || "Falha ao trocar a senha"); return; }
+            msg("change-msg", "Senha alterada! Redirecionando ao painel…", "ok");
+            setTimeout(function () { show("panel"); loadAll(); }, 900);
+          } catch (e) {
+            msg("change-msg", "Erro de conexão: " + e.message);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+
+        /* ───────── PAINEL ───────── */
+        $("btn-logout").addEventListener("click", function () {
+          setToken("");
+          $("password").value = "";
+          show("login");
+        });
+
+        $("btn-reload").addEventListener("click", loadAll);
+
+        async function loadAll() {
+          try {
+            var st = await api("/platform-status");
+            if (st.success) {
+              $("s-tenants").textContent = st.data.tenants;
+              $("s-active").textContent = st.data.active_tenants;
+              $("s-users").textContent = st.data.tenant_users;
+              $("platform").textContent = st.data.platform;
+            }
+            var data = await api("/tenants");
+            renderTenants(data.data || []);
+          } catch (e) {
+            msg("tenant-msg", "Erro ao carregar dados: " + e.message);
+          }
+        }
+
+        function renderTenants(list) {
+          var body = $("tenants-body");
+          if (!list.length) {
+            body.innerHTML = '<tr><td colspan="7" class="code">Nenhum tenant cadastrado.</td></tr>';
+            return;
+          }
+          body.innerHTML = "";
+          list.forEach(function (t) {
+            var tr = document.createElement("tr");
+            var statuses = ["active", "trial", "suspended", "expired"];
+            var opts = statuses.map(function (s) {
+              return '<option value="' + s + '"' + (t.status === s ? " selected" : "") + ">" + s + "</option>";
+            }).join("");
+            tr.innerHTML =
+              "<td>" + t.id + "</td>" +
+              "<td>" + esc(t.name) + "</td>" +
+              '<td class="code">' + esc(t.slug) + "</td>" +
+              '<td><span class="badge b-' + t.status + '">' + esc(t.status) + "</span></td>" +
+              "<td>" + (t.users_count || 0) + "</td>" +
+              "<td>" + (t.instances_count || 0) + "</td>" +
+              '<td><select class="tenant-status" data-id="' + t.id + '" style="width:auto;height:34px;padding:0 8px;font-size:12px">' + opts + "</select></td>";
+            body.appendChild(tr);
+          });
+          body.querySelectorAll("select.tenant-status").forEach(function (sel) {
+            sel.addEventListener("change", async function () {
+              var id = sel.getAttribute("data-id");
+              var r = await api("/tenants/" + id + "/status", {
+                method: "POST",
+                body: { status: sel.value },
+              });
+              if (!r.success) { alert(r.msg || "Erro ao alterar status"); }
+              loadAll();
+            });
+          });
+        }
+
+        function esc(s) {
+          return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+            return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+          });
+        }
+
+        $("form-tenant").addEventListener("submit", async function (ev) {
+          ev.preventDefault();
+          msg("tenant-msg", "");
+          var btn = $("btn-tenant");
+          btn.disabled = true;
+          try {
+            var data = await api("/tenants", {
+              method: "POST",
+              body: {
+                name: $("t-name").value.trim(),
+                slug: $("t-slug").value.trim().toLowerCase(),
+                domain: $("t-domain").value.trim() || undefined,
+                plan_id: $("t-plan").value ? Number($("t-plan").value) : undefined,
+                owner_email: $("t-owner").value.trim() || undefined,
+              },
+            });
+            if (!data.success) { msg("tenant-msg", data.msg || "Erro ao criar tenant"); return; }
+            msg("tenant-msg", data.msg + " (" + (data.data && data.data.url) + ")", "ok");
+            $("form-tenant").reset();
+            loadAll();
+          } catch (e) {
+            msg("tenant-msg", "Erro de conexão: " + e.message);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+
+        $("form-invite").addEventListener("submit", async function (ev) {
+          ev.preventDefault();
+          msg("invite-msg", "");
+          var btn = $("btn-invite");
+          btn.disabled = true;
+          try {
+            var data = await api("/tenants/" + $("i-tenant").value + "/invite", {
+              method: "POST",
+              body: { email: $("i-email").value.trim(), role: $("i-role").value },
+            });
+            msg("invite-msg", data.msg || (data.success ? "OK" : "Erro"), data.success ? "ok" : "err");
+            if (data.success) loadAll();
+          } catch (e) {
+            msg("invite-msg", "Erro de conexão: " + e.message);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+
+        /* ───────── BOOT ───────── */
+        if (getToken()) {
+          api("/platform-status").then(function (r) {
+            if (r.success) { show("panel"); loadAll(); }
+            else if (r.must_change_password) { show("change"); }
+            else { setToken(""); show("login"); }
+          });
+        } else {
+          show("login");
+        }
+      })();
+    </script>
+  </body>
+</html>

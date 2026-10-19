@@ -266,6 +266,16 @@ app.use("/meta-media", createMediaMiddleware("./client/public/meta-media"));
 // ─── Static & Catch-All ───────────────────────────────────────────────────────
 app.use(express.static(path.resolve(currentDir, "./client/public")));
 
+// ─── Super Admin (pagina estatica, servida antes do catch-all do SPA) ─────────
+app.get(
+  ["/superadmin", "/superadmin/", "/superadmin/login"],
+  function (request, response) {
+    response.sendFile(
+      path.resolve(currentDir, "./client/public", "superadmin.html"),
+    );
+  },
+);
+
 app.get("*", function (request, response) {
   response.sendFile(path.resolve(currentDir, "./client/public", "index.html"));
 });
