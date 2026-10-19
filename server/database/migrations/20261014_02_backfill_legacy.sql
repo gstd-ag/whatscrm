@@ -20,7 +20,7 @@
 --
 -- Banco existente (initdb.d so roda no primeiro boot do volume):
 --   docker exec -i <db> mysql -u root -p"$MYSQL_ROOT_PASSWORD" \
---     "$MYSQL_DATABASE" < database/migrations/20261014_backfill_legacy.sql
+--     "$MYSQL_DATABASE" < server/database/migrations/20261014_02_backfill_legacy.sql
 -- ============================================================
 
 -- ----------------------------------------------------------

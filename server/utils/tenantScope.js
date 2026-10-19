@@ -23,7 +23,7 @@
 //   Enquanto houver dados legados sem backfill, o filtro inclui
 //   "OR tenant_id IS NULL" — registros NULL nunca pertencem a outro
 //   tenant, entao nao ha vazamento cross-tenant. Apos executar
-//   database/migrations/20261014_backfill_legacy.sql, defina
+//   server/database/migrations/20261014_02_backfill_legacy.sql, defina
 //   TENANT_STRICT=1 no .env para endurecer para "tenant_id = ?" puro
 //   (mudanca em um unico ponto: TENANT_STRICT_MODE abaixo).
 // ============================================================

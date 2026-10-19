@@ -92,7 +92,7 @@ function has(flag) {
     console.error("ERRO:", e.message);
     if (/super_admins/.test(e.message)) {
       console.error(
-        "Dica: aplique a migracao database/migrations/20261014_multi_tenant_core.sql",
+        "Dica: aplique a migracao server/database/migrations/20261014_01_multi_tenant_core.sql",
       );
     }
     process.exit(1);

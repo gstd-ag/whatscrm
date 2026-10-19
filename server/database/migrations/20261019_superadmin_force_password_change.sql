@@ -11,7 +11,7 @@
 --
 -- Como executar (banco existente / volume ja inicializado):
 --   docker exec -i whatscrm-db mariadb -u root -p"$DB_ROOT_PASS" whatscrm \
---     < database/migrations/20261019_superadmin_force_password_change.sql
+--     < server/database/migrations/20261019_superadmin_force_password_change.sql
 -- ============================================================
 
 -- ----------------------------------------------------------

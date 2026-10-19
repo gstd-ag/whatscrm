@@ -2028,10 +2028,12 @@ router.post("/superadmin/login", async (req, res) => {
     try {
       rows = await query(`SELECT * FROM super_admins WHERE email = ?`, [email]);
     } catch (dbErr) {
-      // Migracao ainda nao aplicada -> orienta o operador
+      // Tabelas ausentes -> o auto-migrate nao conseguiu aplicar no boot.
+      // Orientar o operador a ver os logs e, se preciso, aplicar manualmente.
+      console.error("[superadmin/login] tabelas ausentes:", dbErr.message);
       return res.json({
         success: false,
-        msg: "Migracao multi-tenant nao aplicada. Execute database/migrations/20261014_multi_tenant_core.sql",
+        msg: "Banco sem as tabelas multi-tenant. O app aplica as migracoes no boot (server/database/autoMigrate.js) — confira os logs com [migrate] e reinicie o container. Manual: server/database/migrations/20261014_01_multi_tenant_core.sql",
       });
     }
 

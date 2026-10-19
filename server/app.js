@@ -255,6 +255,15 @@ const server = app.listen(process.env.PORT || 3010, () => {
   isLogging &&
     console.log(`WaCrm server is running on port ${process.env.PORT}`);
 
+  // Aplica as migrações pendentes (idempotente). Nunca derruba o boot.
+  require("./database/autoMigrate")()
+    .then((r) => {
+      if (r && r.failed && r.failed.length) {
+        console.error("[migrate] migrações com erro:", r.failed.join(", "));
+      }
+    })
+    .catch((e) => console.error("[migrate] falhou:", e.message));
+
   updateLangJsonFromEnglish();
   init();
   setTimeout(() => {

@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # ============================================================
-# Deploy do WhatsCRM (VPS) — atualiza o código, rebuilda o app
-# e aplica as migrações pendentes (idempotentes).
+# Deploy do WhatsCRM (VPS / Dokploy) 
 #
-# Uso (na raiz do repositório, na VPS):
+# Fluxo: código pelo git -> rebuild da imagem -> o APP aplica as
+# migrações sozinho no boot (idempotente, via server/database/autoMigrate.js).
+#
+# Uso (na raiz do repositório, no servidor):
 #   ./deploy.sh
 #
 # Requer o arquivo .env na raiz com DB_ROOT_PASS definido.
@@ -23,16 +25,11 @@ set -a
 . ./.env
 set +a
 
-if [ -z "${DB_ROOT_PASS:-}" ]; then
-  echo "ERRO: defina DB_ROOT_PASS no .env"
-  exit 1
-fi
-
 echo "==> 1/4 Baixando codigo (git pull)"
 git pull --ff-only
 
 echo "==> 2/4 Verificando codigo"
-for f in server/server.js server/routes/admin.js server/middlewares/superAdmin.js; do
+for f in server/server.js server/app.js server/routes/admin.js server/middlewares/superAdmin.js server/database/autoMigrate.js; do
   docker run --rm -v "$PWD/server:/app" -w /app node:20 node --check "${f#server/}" \
     || { echo "ERRO de sintaxe em $f"; exit 1; }
 done
@@ -40,39 +37,27 @@ done
 echo "==> 3/4 Build + subida do app"
 docker compose up -d --build app
 
-echo "==> 4/4 Aguardando o banco e aplicando migracoes"
+echo "==> 4/4 Aguardando o app aplicar as migracoes (auto-migrate no boot)"
+APP=$(docker compose ps -q app 2>/dev/null | head -1 || true)
 for _ in $(seq 1 40); do
-  if docker exec whatscrm-db healthcheck.sh --connect --innodb_initialized >/dev/null 2>&1; then
+  if docker exec whatscrm-db mariadb -u root -p"${DB_ROOT_PASS:-}" "${DBNAME}" \
+       -e "SELECT 1 FROM schema_migrations LIMIT 1" >/dev/null 2>&1; then
     break
   fi
   sleep 2
 done
 
-run_migration() {
-  local name="$1"
-  local file="database/migrations/${name}.sql"
-  if [ ! -f "$file" ]; then
-    echo "   ! $file nao encontrado (ignorado)"
-    return 0
-  fi
-  echo "   - $name"
-  docker exec -i whatscrm-db mariadb -u root -p"${DB_ROOT_PASS}" "${DBNAME}" \
-    < "$file" >/dev/null
-}
-
-run_migration 20261014_multi_tenant_core
-run_migration 20261014_backfill_legacy
-run_migration 20261019_superadmin_force_password_change
+echo "   Logs do auto-migrate:"
+docker logs whatscrm-app 2>&1 | grep "\[migrate\]" | tail -10 || echo "   (nada ainda)"
 
 echo
 echo "==> Conferencia"
-docker exec -i whatscrm-db mariadb -u root -p"${DB_ROOT_PASS}" "${DBNAME}" -e \
-  "SELECT id, email, role, must_change_password FROM super_admins;" 2>/dev/null || true
+docker exec -i whatscrm-db mariadb -u root -p"${DB_ROOT_PASS:-}" "${DBNAME}" -e \
+  "SELECT name, applied_at FROM schema_migrations;
+   SELECT id, email, role, must_change_password FROM super_admins;" 2>/dev/null || true
 
 echo
-echo "==> Pronto. App em http://127.0.0.1:3010"
-echo "    Super admin: https://app.gstd.com.br/superadmin"
-echo
+echo "==> Pronto. Super admin: https://app.gstd.com.br/superadmin"
 echo "    Se ainda nao existir um super admin, crie com:"
 echo "      docker exec -i -w /app whatscrm-app node scripts/create-super-admin.js \\"
 echo "        --email seu@email.com --name \"Seu Nome\" --force-change"

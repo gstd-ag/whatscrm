@@ -6,7 +6,7 @@
 --
 -- Executar:
 --   mysql -u root -p <nome_do_banco> \
---     < database/migrations/20261014_multi_tenant_core.sql
+--     < server/database/migrations/20261014_01_multi_tenant_core.sql
 --
 -- NOTA: database/import.sql ja contem a coluna `tenant_id` e o indice
 -- idx_tenant nas tabelas-alvo (instalacoes novas). Esta migracao cobre
