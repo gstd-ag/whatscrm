@@ -42,7 +42,9 @@ services:
       MARIADB_PASSWORD: ${DB_PASS:?Defina DB_PASS no .env}
       MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASS:?Defina DB_ROOT_PASS no .env}
     volumes:
-      - db_data:/var/lib/mysql
+      # Datadir fora da raiz '/' (que vive em 83-89%). /home tem disco dedicado.
+      # Rollback: voltar para "db_data:/var/lib/mysql" (volume antigo preservado).
+      - ${DB_DATA_DIR:-/home/docker/whatscrm-db}:/var/lib/mysql
       - ./database/import.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       # Multi-tenant: idempotente, seguro no primeiro boot do volume
       - ./server/database/migrations/20261014_01_multi_tenant_core.sql:/docker-entrypoint-initdb.d/02-multitenant.sql:ro
@@ -64,7 +66,7 @@ services:
       - mongo_data:/data/db
 
 volumes:
-  db_data:
+  # db_data: mantido apenas como rollback; o MariaDB agora usa /home/docker/whatscrm-db
   mongo_data:
   app_media:
   app_languages:

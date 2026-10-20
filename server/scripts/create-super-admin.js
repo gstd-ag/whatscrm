@@ -6,12 +6,14 @@
 // Uso (dentro do container do app):
 //   docker exec -i -w /app whatscrm-app node scripts/create-super-admin.js \
 //     --email usuario@dominio.com --name "Nome" \
-//     [--password "SenhaTemp"] [--force-change]
+//     [--password "SenhaTemp"] [--force-change] [--sync-admin]
 //
 // - Sem --password: gera uma senha temporaria forte e imprime no final.
 // - Com --force-change: marca must_change_password = 1. Nesse estado o
 //   super admin so consegue chamar POST /api/admin/superadmin/change-password
 //   ate definir uma senha nova.
+// - Com --sync-admin: tambem cria/atualiza a mesma conta na tabela `admin`
+//   (painel /admin/login), com a mesma senha.
 //
 // Requer as migracoes aplicadas (tabelas super_admins).
 // ============================================================
@@ -37,6 +39,7 @@ function has(flag) {
     .toLowerCase();
   const name = String(arg("name", "Super Admin") || "Super Admin").trim();
   const forceChange = has("force-change");
+  const syncAdmin = has("sync-admin");
   let password = arg("password", null);
   let generated = false;
 
@@ -80,6 +83,30 @@ function has(flag) {
     console.log(
       `must_change_password: ${forceChange ? "1 (troca obrigatoria no 1o login)" : "0"}`,
     );
+
+    // Espelha no painel /admin/login, se solicitado
+    if (syncAdmin) {
+      const [adm] = await p.query(
+        "SELECT id FROM admin WHERE email = ? LIMIT 1",
+        [email],
+      );
+      if (adm.length) {
+        await p.query(
+          `UPDATE admin
+              SET password = ?, tokenVersion = COALESCE(tokenVersion, 0) + 1
+            WHERE id = ?`,
+          [hash, adm[0].id],
+        );
+        console.log(`Admin (/admin/login) ATUALIZADO: ${email} (id ${adm[0].id})`);
+      } else {
+        const [ra] = await p.query(
+          `INSERT INTO admin (email, password, uid, role, tokenVersion)
+           VALUES (?,?,?, 'admin', 1)`,
+          [email, hash, uid],
+        );
+        console.log(`Admin (/admin/login) CRIADO: ${email} (id ${ra.insertId})`);
+      }
+    }
 
     if (generated) {
       console.log("");

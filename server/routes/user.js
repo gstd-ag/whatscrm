@@ -28,6 +28,7 @@ const {
 } = require("../functions/function.js");
 const { sign } = require("jsonwebtoken");
 const validateUser = require("../middlewares/user.js");
+const { sanitizeUser } = require("../utils/sanitizeUser.js");
 const {
   tenantFilter,
   tenantInsert,
@@ -781,7 +782,7 @@ router.get("/get_me", validateUser, async (req, res) => {
     }
 
     res.json({
-      data: { ...data[0], contact: contact.length },
+      data: { ...sanitizeUser(data[0]), contact: contact.length },
       success: true,
       addon: finalAddon,
     });
@@ -1351,7 +1352,7 @@ router.get("/get_payment_details", validateUser, async (req, res) => {
     ]);
 
     data.pay_stripe_key = "";
-    res.json({ data, userData, success: true });
+    res.json({ data, userData: sanitizeUser(userData), success: true });
   } catch (err) {
     res.json({ success: false, msg: "something went wrong", err });
     logger.log(err);
@@ -1950,7 +1951,7 @@ router.get("/get_dashboard", validateUser, async (req, res) => {
     );
 
     const data = {
-      user: user[0],
+      user: sanitizeUser(user[0]),
       stats: {
         agents: agents[0].count,
         activeChats: activeChats[0].count,

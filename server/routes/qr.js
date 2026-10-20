@@ -18,6 +18,7 @@ const validateAgent = require("../middlewares/agent.js");
 const jwt = require("jsonwebtoken");
 const logger = require("../utils/logger.js");
 const { tenantFilter, tenantInsert } = require("../utils/tenantScope.js");
+const { sanitizeUser } = require("../utils/sanitizeUser.js");
 
 function decodeToken(token) {
   return new Promise((resolve) => {
@@ -52,7 +53,7 @@ function decodeToken(token) {
 
       resolve({
         success: true,
-        data: getUser[0],
+        data: sanitizeUser(getUser[0]),
       });
     });
   });

@@ -61,6 +61,22 @@ function splitStatements(sql) {
   return statements;
 }
 
+// Pre-flight: prova que o InnoDB consegue ESCREVER no datadir antes de
+// qualquer DDL. Se o disco estiver cheio, um CREATE falha com Errcode 28
+// "No space left on device" — o mesmo erro que abortava o MariaDB durante
+// o ALTER TABLE.* no boot. Nesse caso NAO aplicamos migracao: adiamos.
+async function canWriteToDatadir(conn) {
+  try {
+    await conn.query(`CREATE TABLE _migrate_probe (id INT) ENGINE=InnoDB`);
+    await conn.query(`DROP TABLE _migrate_probe`);
+    return { ok: true };
+  } catch (e) {
+    const full =
+      e && (e.errno === 28 || /No space left on device|Errcode: 28/i.test(e.message || ""));
+    return { ok: false, full, message: e && e.message };
+  }
+}
+
 async function ensureLedger(conn) {
   await conn.query(
     `CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -105,6 +121,23 @@ async function autoMigrate() {
   const result = { applied: [], skipped: [], failed: [] };
 
   try {
+    // ADITIVO: nunca disparar DDL com o disco do banco cheio (InnoDB aborta).
+    const probe = await canWriteToDatadir(conn);
+    if (!probe.ok) {
+      if (probe.full) {
+        console.error(
+          "[migrate] datadir SEM espaco em disco (Errcode 28) — migracoes adiadas para o proximo boot",
+        );
+        return { applied: [], skipped: [], failed: [], reason: "disco cheio" };
+      }
+      console.error(
+        "[migrate] datadir nao aceitou escrita:",
+        probe.message,
+        "— migracoes adiadas",
+      );
+      return { applied: [], skipped: [], failed: [], reason: "datadir nao gravavel" };
+    }
+
     await ensureLedger(conn);
     const [rows] = await conn.query(`SELECT name FROM schema_migrations`);
     const done = new Set(rows.map((r) => r.name));

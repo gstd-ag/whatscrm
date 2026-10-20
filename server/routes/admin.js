@@ -20,6 +20,7 @@ const {
   sendFcmPushNotification,
 } = require("../helper/addon/web-notification/webPush.js");
 const logger = require("../utils/logger.js");
+const { sanitizeUser } = require("../utils/sanitizeUser.js");
 const mysql = require("mysql2/promise");
 const { MongoClient } = require("mongodb");
 const admin = require("firebase-admin");
@@ -230,7 +231,7 @@ router.post("/del_plan", adminValidator, async (req, res) => {
 router.get("/get_users", adminValidator, async (req, res) => {
   try {
     const data = await query(`SELECT * FROM user`, []);
-    res.json({ data, success: true });
+    res.json({ data: data.map(sanitizeUser), success: true });
   } catch (err) {
     res.json({ success: false, msg: "something went wrong" });
     logger.log(err);

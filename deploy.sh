@@ -34,6 +34,16 @@ for f in server/server.js server/app.js server/routes/admin.js server/middleware
     || { echo "ERRO de sintaxe em $f"; exit 1; }
 done
 
+# ADITIVO: o MariaDB aborta DDL com "Errcode: 28" quando a raiz enche.
+# Aborta o deploy antes do build se o filesystem do datadir (/) estiver critico.
+DISK_USE=$(df -P / | awk 'NR==2 {gsub("%","",$5); print $5}')
+if [ "${DISK_USE:-0}" -ge 90 ]; then
+  echo "ERRO: raiz '/' com ${DISK_USE}% de uso. Libere espaco antes do deploy:"
+  echo "  docker builder prune -af && docker image prune -f && docker volume prune -f"
+  exit 1
+fi
+echo "   disco '/': ${DISK_USE}% (ok)"
+
 echo "==> 3/4 Build + subida do app"
 docker compose up -d --build app
 

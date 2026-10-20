@@ -1,7 +1,11 @@
 // helper/inbox/forwardMessage.js
 
 const { query } = require("../../database/dbpromise");
-const { getSession, sendMessage } = require("../addon/qr/index");
+// Lazy require: quebra o ciclo de importacao
+// qr/index -> inbox -> socket/index -> forwardMessage -> qr/index.
+// Sem isso o Node avisa "Accessing non-existent property 'getSession' ..."
+// e o valor pode vir undefined durante o boot.
+const qr = () => require("../addon/qr/index");
 const randomstring = require("randomstring");
 const logger = require("../../utils/logger");
 const axios = require("axios");
@@ -68,7 +72,7 @@ async function handleForwardMessage({ payload, uid, socket }) {
         if (inst) instanceId = inst.uniqueId;
       }
 
-      const session = getSession(instanceId);
+      const session = qr().getSession(instanceId);
       if (!session) {
         socket.emit("error", { msg: "QR session not active" });
         return;

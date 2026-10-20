@@ -10,6 +10,7 @@ const {
 } = require("../functions/function.js");
 const { sign } = require("jsonwebtoken");
 const validateUser = require("../middlewares/user.js");
+const { sanitizeUser } = require("../utils/sanitizeUser.js");
 const Stripe = require("stripe");
 const {
   checkPlan,
@@ -49,7 +50,7 @@ function decodeToken(token) {
       } else {
         resolve({
           success: true,
-          data: getUser[0],
+          data: sanitizeUser(getUser[0]),
         });
       }
     });
