@@ -18,9 +18,9 @@ services:
       DBUSER: whatscrm
       DBPASS: ${DB_PASS:?Defina DB_PASS no .env}
       JWTKEY: ${JWTKEY:?Defina JWTKEY no .env}
-      FRONTENDURI: ${FRONTENDURI:-https://app.gstd.com.br}
-      BACKURI: ${BACKURI:-https://app.gstd.com.br}
-      DOMAIN: ${DOMAIN:-https://app.gstd.com.br}
+      FRONTENDURI: ${FRONTENDURI:-https://whats.gstd.com.br}
+      BACKURI: ${BACKURI:-https://whats.gstd.com.br}
+      DOMAIN: ${DOMAIN:-https://whats.gstd.com.br}
       MONGO_DB_NAME: wacrm_session
       STRIPE_LANG: pt
     depends_on:
